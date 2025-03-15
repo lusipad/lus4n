@@ -1,0 +1,80 @@
+name: 构建可执行程序
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: 使用 PyInstaller 打包应用
+      uses: JackMcKew/pyinstaller-action-windows@main
+      with:
+        path: .
+        spec: lus4n.spec  # 如果没有 spec 文件，请移除此行
+    
+    - name: 创建 spec 文件
+      run: |
+        if [ ! -f "lus4n.spec" ]; then
+          echo "# -*- mode: python ; coding: utf-8 -*-
+          block_cipher = None
+          
+          a = Analysis(
+              ['lus4n/cli.py'],
+              pathex=[],
+              binaries=[],
+              datas=[],
+              hiddenimports=['pkg_resources.extern'],
+              hookspath=[],
+              hooksconfig={},
+              runtime_hooks=[],
+              excludes=[],
+              win_no_prefer_redirects=False,
+              win_private_assemblies=False,
+              cipher=block_cipher,
+              noarchive=False,
+          )
+          
+          pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+          
+          exe = EXE(
+              pyz,
+              a.scripts,
+              a.binaries,
+              a.zipfiles,
+              a.datas,
+              [],
+              name='lus4n',
+              debug=False,
+              bootloader_ignore_signals=False,
+              strip=False,
+              upx=True,
+              upx_exclude=[],
+              runtime_tmpdir=None,
+              console=True,
+              disable_windowed_traceback=False,
+              argv_emulation=False,
+              target_arch=None,
+              codesign_identity=None,
+              entitlements_file=None,
+          )" > lus4n.spec
+        fi
+      shell: bash
+    
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: lus4n-windows
+        path: dist/windows
+    
+    - name: 上传到 Release
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/windows/lus4n.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
