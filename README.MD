@@ -42,17 +42,25 @@ lus4n 支持以下功能：
 ### 1. 扫描 Lua 代码并生成调用图
 
 ```powershell
-lus4n -p <Lua代码路径> -s <存储文件路径>
+lus4n -p <Lua代码路径> -s <存储文件路径> [-e <文件后缀>]
 ```
 
 参数说明:
 - `-p, --path`: 指定要扫描的 Lua 代码路径（必需）
 - `-s, --storage`: 指定生成的调用图数据存储文件路径（可选，如果不指定则存储在临时目录）
+- `-e, --extensions`: 指定要扫描的文件后缀，多个后缀用逗号分隔（可选，默认为 ".lua"）
 
 示例:
 
 ```powershell
+# 使用默认后缀 .lua 进行扫描
 lus4n -p ./rootfs/ -s ./result.jb
+
+# 扫描 .lua 和 .luac 后缀的文件
+lus4n -p ./rootfs/ -s ./result.jb -e ".lua,.luac"
+
+# 扫描所有 .lc 后缀的文件
+lus4n -p ./rootfs/ -s ./result.jb -e ".lc"
 ```
 
 ### 2. 查询特定函数的调用关系

@@ -28,16 +28,27 @@ def scan_one_file(file_path: str, _format="json", _debug=False):
     return file_path, call_graph, require
 
 
-def scan_path(dirt_path: str, _format, _debug=False):
+def scan_path(dirt_path: str, _format, _debug=False, extensions=None):
     whole_call_graph = {}
     whole_call_network = nx.DiGraph()
     will_scan = []
+    
+    # 如果没有指定后缀，默认使用 .lua
+    if extensions is None:
+        extensions = [".lua"]
+        
     for path, dir_list, file_list in os.walk(dirt_path):
         for file_name in file_list:
             file_path = os.path.join(path, file_name)
             try:
                 content = open(file_path, "rb").read()
-                if file_path.endswith(".lua") and not content.startswith(b"\x1bL"):
+                # 检查文件是否有指定的后缀
+                has_valid_extension = any(file_path.endswith(ext) for ext in extensions)
+                
+                # 添加文件到扫描列表的条件：
+                # 1. 有效的后缀名且不是Lua字节码
+                # 2. 以 #!/usr/bin/lua 开头的任何文件
+                if has_valid_extension and not content.startswith(b"\x1bL"):
                     will_scan.append(file_path)
                 elif content.startswith(b"#!/usr/bin/lua"):
                     will_scan.append(file_path)
@@ -47,6 +58,7 @@ def scan_path(dirt_path: str, _format, _debug=False):
                 logger.warning(f"UnknownError with {file_path} [{e}]")
             # except Exception as e:
             #     logger.warning(f"Oops, {file_path} failed by {e}")
+            
     for file_path in tqdm(will_scan):
         _, call_graph, require = scan_one_file(file_path, _format, _debug)
         relative_file_path = file_path[len(dirt_path):]

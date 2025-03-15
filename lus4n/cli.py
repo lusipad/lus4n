@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser(description="Lus4n: lua call graph generation")
 parser.add_argument('-p', '--path', type=str)
 parser.add_argument('-s', '--storage', type=str)
 parser.add_argument('-q', '--query', type=str)
+parser.add_argument('-e', '--extensions', type=str, default=".lua", help="要扫描的文件后缀，多个后缀以逗号分隔，例如 '.lua,.luac'")
 args = parser.parse_args()
 temp_dir = tempfile.gettempdir()
 if args.path:
@@ -35,7 +36,8 @@ else:
 def main():
 
     if args.path:
-        d, g = scan_path(args.path, None, False)
+        extensions = [ext.strip() for ext in args.extensions.split(",")]
+        d, g = scan_path(args.path, None, False, extensions)
         dump(g, storage)
     elif args.query:
         g: nx.DiGraph = load(args.storage)
