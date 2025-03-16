@@ -37,11 +37,11 @@ lus4n 提供了直观的图形用户界面，可以通过以下命令启动：
 ```powershell
 python -m lus4n.gui
 ```
-![image-20250316085039060](README.assets/image-20250316085039060.png)
+![image-20250316085039060](http://raw.gitmirror.com/lusipad/imgur/main/img/image-20250316085039060.png)
 
-![image-20250316085003596](README.assets/image-20250316085003596.png)
+![image-20250316101936429](http://raw.gitmirror.com/lusipad/imgur/main/img/image-20250316101936429.png)
 
-![image-20250316085126885](README.assets/image-20250316085126885.png)
+![image-20250316085126885](http://raw.gitmirror.com/lusipad/imgur/main/img/image-20250316085126885.png)
 
 图形界面包含以下功能：
 
@@ -177,7 +177,7 @@ git push origin v1.2.0
 构建完成后，GitHub 将自动创建一个新的 Release，并将打包好的应用程序上传到 Release 页面。
 
 ## 版本历史
-## v1.3.0 (2025-03-16)
+### v1.3.0 (2025-03-16)
 - 增加了 windows 打包支持
 
 ### v1.2.0 (2025-03-16)
