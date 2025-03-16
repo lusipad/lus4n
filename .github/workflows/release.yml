@@ -32,8 +32,37 @@ jobs:
           if (!(Test-Path $hookDir)) {
               New-Item -Path $hookDir -ItemType Directory | Out-Null
           }
-          $hookContent = "# PyInstaller hook for luaparser`nfrom PyInstaller.utils.hooks import collect_submodules, collect_data_files`n`n# Make sure all submodules are included`nhiddenimports = collect_submodules('luaparser')`n`n# Include any data files`ndatas = collect_data_files('luaparser')"
-          Set-Content -Path "$hookDir\hook-luaparser.py" -Value $hookContent
+          
+          $luaparserContent = "# PyInstaller hook for luaparser`nfrom PyInstaller.utils.hooks import collect_submodules, collect_data_files`n`n# Make sure all submodules are included`nhiddenimports = collect_submodules('luaparser')`n`n# Include any data files`ndatas = collect_data_files('luaparser')"
+          Set-Content -Path "$hookDir\hook-luaparser.py" -Value $luaparserContent
+      
+      - name: Create hook file for xxhash
+        shell: pwsh
+        run: |
+          $hookDir = ".\hooks"
+          $xxhashContent = "# PyInstaller hook for xxhash`nhiddenimports = ['xxhash']"
+          Set-Content -Path "$hookDir\hook-xxhash.py" -Value $xxhashContent
+          
+      - name: Create hook file for PySide6
+        shell: pwsh
+        run: |
+          $hookDir = ".\hooks"
+          $pyside6Content = "# PyInstaller hook for PySide6`nfrom PyInstaller.utils.hooks import collect_submodules, collect_data_files`n`n# Make sure all submodules are included`nhiddenimports = collect_submodules('PySide6')`n`n# Specifically include QtWebEngineWidgets which is often missed`nhiddenimports += ['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'PySide6.QtWebChannel']`n`n# Include any data files`ndatas = collect_data_files('PySide6')"
+          Set-Content -Path "$hookDir\hook-PySide6.py" -Value $pyside6Content
+          
+      - name: Create hook file for pyvis
+        shell: pwsh
+        run: |
+          $hookDir = ".\hooks"
+          $pyvisContent = "# PyInstaller hook for pyvis`nfrom PyInstaller.utils.hooks import collect_submodules, collect_data_files`n`n# Make sure all submodules are included`nhiddenimports = collect_submodules('pyvis')`n`n# Include any data files`ndatas = collect_data_files('pyvis')"
+          Set-Content -Path "$hookDir\hook-pyvis.py" -Value $pyvisContent
+          
+      - name: Create global hook file
+        shell: pwsh
+        run: |
+          $hookDir = ".\hooks"
+          $globalContent = "# Global hidden imports to ensure all dependencies are included`nhiddenimports = ['xxhash', 'networkx', 'joblib', 'tqdm', 'loguru', 'luaparser', 'setuptools', 'pyvis', 'PySide6', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'PySide6.QtWebChannel', 'uuid', 'tempfile', 'webbrowser']"
+          Set-Content -Path "$hookDir\hook-lus4n.py" -Value $globalContent
       
       - name: Package application
         shell: pwsh
@@ -50,13 +79,33 @@ jobs:
           # Get CPU core count for parallel compilation
           $cpuCores = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
           
-          # Package GUI application
+          # Package GUI application with explicit includes
           Write-Host "Packaging GUI application (using $cpuCores CPU cores)..." -ForegroundColor Green
-          pyinstaller --clean --noconfirm --onedir --name "lus4n-gui" --windowed --additional-hooks-dir=hooks lus4n/gui.py
+          pyinstaller --clean --noconfirm --onedir --name "lus4n-gui" --windowed --additional-hooks-dir=hooks `
+            --hidden-import=xxhash `
+            --hidden-import=networkx `
+            --hidden-import=joblib `
+            --hidden-import=tqdm `
+            --hidden-import=loguru `
+            --hidden-import=luaparser `
+            --hidden-import=pyvis `
+            --hidden-import=PySide6 `
+            --hidden-import=PySide6.QtWebEngineCore `
+            --hidden-import=PySide6.QtWebEngineWidgets `
+            --hidden-import=PySide6.QtWebChannel `
+            --collect-data=pyvis `
+            lus4n/gui.py
           
-          # Package command-line application
+          # Package command-line application with explicit includes
           Write-Host "Packaging command-line application..." -ForegroundColor Green
-          pyinstaller --clean --noconfirm --onedir --name "lus4n-cli" --additional-hooks-dir=hooks lus4n/cli.py
+          pyinstaller --clean --noconfirm --onedir --name "lus4n-cli" --additional-hooks-dir=hooks `
+            --hidden-import=xxhash `
+            --hidden-import=networkx `
+            --hidden-import=joblib `
+            --hidden-import=tqdm `
+            --hidden-import=loguru `
+            --hidden-import=luaparser `
+            lus4n/cli.py
           
           # Check generated executable files
           $guiExe = ".\dist\lus4n-gui\lus4n-gui.exe"
