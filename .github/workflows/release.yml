@@ -15,7 +15,7 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 设置Python环境
+      - name: 设置 Python 环境
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
@@ -42,7 +42,7 @@ jobs:
           Get-Content -Path "get_pyvis_paths.py"
         shell: pwsh
 
-      - name: 使用PyInstaller打包GUI应用
+      - name: 使用 PyInstaller 打包 GUI 应用
         run: |
           $pyvisDatas = python get_pyvis_paths.py
           Write-Host "Pyvis模板路径: $pyvisDatas"
@@ -65,7 +65,7 @@ jobs:
             lus4n/gui.py
         shell: pwsh
 
-      - name: 使用PyInstaller打包CLI应用
+      - name: 使用 PyInstaller 打包 CLI 应用
         run: |
           $pyvisDatas = python get_pyvis_paths.py
           Write-Host "Pyvis模板路径: $pyvisDatas"
@@ -121,9 +121,8 @@ jobs:
             - Windows GUI版本 (lus4n-gui-windows.zip)
             - Windows 命令行版本 (lus4n-cli-windows.zip)
             
-            ### 修复:
-            - 修复了xxhash模块缺失导致程序无法启动的问题
-            - 修复了pyvis模板文件缺失问题
+            ### 更新内容：
+            请参考 readme 文件
           files: |
             ./releases/lus4n-gui-windows.zip
             ./releases/lus4n-cli-windows.zip
