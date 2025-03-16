@@ -2,7 +2,7 @@ import os
 import json
 import xxhash
 import networkx as nx
-
+import re
 from tqdm import tqdm
 from loguru import logger
 from luaparser import ast
@@ -51,39 +51,38 @@ def scan_one_file(file_path: str, _format="json", _debug=False, encoding=None):
             
         # 禁用输出中不必要的打印，避免编码错误
         import sys
-        import io
         original_stdout = sys.stdout
-        sys.stdout = io.StringIO()  # 捕获输出，避免打印到控制台
+        sys.stdout = open(os.devnull, 'w')
         
         try:
+            # 尝试使用Lua解析器解析
             tree = ast.parse(source)
-        except SyntaxException:
-            logger.warning(f"[语法错误] 跳过文件：{os.path.basename(file_path)}")
-            return file_path, {}, [], "语法错误"
-        except Exception as e:
-            logger.error(f"[解析错误] 跳过文件：{os.path.basename(file_path)} - {str(e)}")
-            return file_path, {}, [], "解析错误"
-        finally:
             sys.stdout = original_stdout  # 恢复正常输出
             
+            # 解析成功，继续处理
+            _visitor = Lus4nVisitor(4, source)
+            _visitor.visit(tree)
+            call_graph, require = _visitor.output(_format=_format)
+            return file_path, call_graph, require, "成功"
+        except SyntaxException:
+            sys.stdout = original_stdout  # 恢复正常输出
+            logger.warning(f"[语法错误，尝试使用正则表达式解析] 文件：{os.path.basename(file_path)}")
+            # 使用正则表达式提取函数和 require 语句
+            return extract_info_with_regex(file_path, source, _format)
+        except Exception as e:
+            sys.stdout = original_stdout  # 恢复正常输出
+            logger.error(f"[解析错误，尝试使用正则表达式解析] 文件：{os.path.basename(file_path)} - {str(e)}")
+            # 使用正则表达式提取函数和 require 语句
+            return extract_info_with_regex(file_path, source, _format)
     except IOError as e:
         logger.error(f"[IO 错误] 跳过文件：{os.path.basename(file_path)} - {str(e)}")
         return file_path, {}, [], "IO 错误"
     except Exception as e:
         logger.error(f"[未知错误] 跳过文件：{os.path.basename(file_path)} - {str(e)}")
         return file_path, {}, [], "未知错误"
-    
-    try:    
-        _visitor = Lus4nVisitor(4, source)
-        _visitor.visit(tree)
-        call_graph, require = _visitor.output(_format=_format)
-        return file_path, call_graph, require, "成功"
-    except Exception as e:
-        logger.error(f"[分析错误] 跳过文件：{os.path.basename(file_path)} - {str(e)}")
-        return file_path, {}, [], "分析错误"
 
 
-def scan_path(dirt_path: str, _format, _debug=False, extensions=None):
+def scan_path(dirt_path: str, _format="json", _debug=False, extensions=None):
     whole_call_graph = {}
     whole_call_network = nx.DiGraph()
     will_scan = []
@@ -333,3 +332,43 @@ class Lus4nVisitor(PythonStyleVisitor):
             name = self.walk_func_name(node.value, name)
             name.append(node.idx.id)
             return name
+
+
+# 使用正则表达式提取信息的函数
+def extract_info_with_regex(file_path, source, _format="json"):
+    """当Lua解析器失败时，使用正则表达式提取基本信息"""
+    
+    call_graph = {}
+    require = []
+    
+    try:
+        # 提取 require 语句
+        require_pattern = r'require\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)'
+        require_matches = re.findall(require_pattern, source)
+        for match in require_matches:
+            require.append(match)
+            
+        # 提取函数定义
+        function_pattern = r'function\s+([a-zA-Z0-9_.:]+)\s*\('
+        function_matches = re.findall(function_pattern, source)
+        
+        # 提取函数调用
+        function_call_pattern = r'([a-zA-Z0-9_.:]+)\s*\('
+        all_function_calls = re.findall(function_call_pattern, source)
+        
+        # 构建简单的调用图
+        for func in function_matches:
+            call_graph[func] = []
+            
+        # 在函数之间建立联系（简化处理）
+        for func in function_matches:
+            for call in all_function_calls:
+                if call != func and call in function_matches:
+                    if func in call_graph:
+                        call_graph[func].append(call)
+                    
+        logger.info(f"使用正则表达式成功解析文件：{os.path.basename(file_path)}")
+        return file_path, call_graph, require, "使用正则表达式解析"
+    except Exception as e:
+        logger.error(f"[正则表达式解析错误] 文件：{os.path.basename(file_path)} - {str(e)}")
+        return file_path, {}, [], "正则表达式解析错误"

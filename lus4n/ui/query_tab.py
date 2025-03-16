@@ -76,7 +76,9 @@ class QueryTab(QWidget):
         
         # 创建结果显示区域
         self.result_browser = QTextBrowser()
-        self.result_browser.setOpenExternalLinks(True)
+        # 设置为不自动打开链接，而是触发 anchorClicked 信号
+        self.result_browser.setOpenLinks(False)
+        self.result_browser.anchorClicked.connect(self._handle_anchor_clicked)
         self.result_browser.setStyleSheet("QTextBrowser { background-color: #f8f9fa; }")
         
         splitter.addWidget(self.result_browser)
@@ -230,59 +232,108 @@ class QueryTab(QWidget):
             # 加载图数据
             self.analyzer.load_graph(storage_path)
             
-            # 获取函数入口点
-            entries = self.analyzer.get_function_entries()
+            # 获取函数入口点及调用次数和文件路径
+            entries = self.analyzer.get_all_function_entries()
             
             if not entries:
                 self.result_browser.setHtml(
-                    "<h3>未找到函数入口点</h3>"
-                    "<p>在扫描的代码中没有找到任何函数入口点。</p>"
+                    "<h3>未找到函数</h3>"
+                    "<p>在扫描的代码中没有找到任何函数。</p>"
                     "<p>这可能是因为：</p>"
                     "<ul>"
                     "<li>代码中没有定义任何函数</li>"
-                    "<li>所有函数都被其他函数调用（没有顶层入口）</li>"
                     "<li>解析过程中出现了问题</li>"
                     "</ul>"
                 )
-                self._update_status("未找到函数入口点")
+                self._update_status("未找到函数")
                 return
             
-            # 按名称排序
-            entries.sort()
+            # entries 已经是按调用次数降序排序的列表，不需要再次排序
+            sorted_entries = entries
             
-            # 生成HTML显示结果
+            # 生成 HTML 表格显示结果
             html = f"""
-            <h3>函数入口点列表</h3>
-            <p>共找到 {len(entries)} 个函数入口点（未被其他函数调用的函数）：</p>
-            <ul>
+            <h3>函数列表</h3>
+            <p>共找到 {len(sorted_entries)} 个函数，按被调用次数降序排列：</p>
+            <style>
+                table {{
+                    border-collapse: collapse;
+                    width: 100%;
+                    font-family: Arial, sans-serif;
+                }}
+                th, td {{
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }}
+                tr:nth-child(even) {{
+                    background-color: #f9f9f9;
+                }}
+                tr:hover {{
+                    background-color: #e9e9e9;
+                }}
+                a {{
+                    color: #0066cc;
+                    text-decoration: none;
+                }}
+                a:hover {{
+                    text-decoration: underline;
+                }}
+            </style>
+            <table>
+                <tr>
+                    <th>函数名</th>
+                    <th>被调用次数</th>
+                    <th>所在文件</th>
+                </tr>
             """
             
-            for entry in entries:
-                html += f"<li><a href='function:{entry}'>{entry}</a></li>"
+            for func_name, call_count in sorted_entries:
+                # 获取函数所在的文件
+                file_path = "未知"
+                for source, _, data in self.analyzer.graph.in_edges(func_name, data=True):
+                    if data.get('action') in ['export', 'define']:
+                        file_path = source
+                        break
+                
+                # 提取文件名（不显示完整路径）
+                file_name = os.path.basename(file_path) if file_path else "未知"
+                
+                html += f"""
+                <tr>
+                    <td><a href="function:{func_name}">{func_name}</a></td>
+                    <td>{call_count}</td>
+                    <td>{file_name}</td>
+                </tr>
+                """
             
             html += """
-            </ul>
+            </table>
             <p>点击函数名可以查看该函数的调用关系。</p>
             """
             
             self.result_browser.setHtml(html)
-            self._update_status(f"显示了 {len(entries)} 个函数入口点")
+            self._update_status(f"显示了 {len(sorted_entries)} 个函数")
             
         except Exception as e:
             self.result_browser.setHtml(
                 f"<h3>列出错误</h3>"
-                f"<p>列出函数入口点时发生错误：{str(e)}</p>"
+                f"<p>列出函数时发生错误：{str(e)}</p>"
             )
             self._update_status("列出失败")
-    
+            
     def _handle_anchor_clicked(self, url):
         """处理链接点击事件"""
         scheme = url.scheme()
         if scheme == "function":
-            function_name = url.path()
+            function_name = url.toString().replace("function:", "")
             self.function_query.set_function_name(function_name)
-            # 可选：自动触发查询
-            # self.query_function()
+            # 自动触发查询
+            self.query_function()
             
     def show_all_function_relations(self):
         """显示所有函数关系"""
