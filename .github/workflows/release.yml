@@ -28,43 +28,29 @@ jobs:
           pip install xxhash==3.5.0
         shell: pwsh
 
-      - name: 创建spec文件
+      - name: 使用PyInstaller打包GUI应用
         run: |
-          $gui_spec = "lus4n-gui.spec"
-          $cli_spec = "lus4n-cli.spec"
-          
-          # 创建GUI的spec文件
-          pyinstaller --name lus4n-gui --onefile --noconsole --hidden-import xxhash --hidden-import networkx --hidden-import joblib --hidden-import tqdm --hidden-import loguru --hidden-import luaparser --hidden-import pyvis --hidden-import PySide6 --hidden-import PySide6.QtWebEngineCore --hidden-import PySide6.QtWebEngineWidgets --hidden-import PySide6.QtWebChannel lus4n/gui.py --specpath .
-          
-          # 创建CLI的spec文件
-          pyinstaller --name lus4n-cli --onefile --console --hidden-import xxhash --hidden-import networkx --hidden-import joblib --hidden-import tqdm --hidden-import loguru --hidden-import luaparser lus4n/cli.py --specpath .
+          pyinstaller --name lus4n-gui --onefile --noconsole --hidden-import xxhash --hidden-import networkx --hidden-import joblib --hidden-import tqdm --hidden-import loguru --hidden-import luaparser --hidden-import pyvis --hidden-import PySide6 --hidden-import PySide6.QtWebEngineCore --hidden-import PySide6.QtWebEngineWidgets --hidden-import PySide6.QtWebChannel lus4n/gui.py
         shell: pwsh
 
-      - name: 使用PyInstaller打包
-        uses: JackMcKew/pyinstaller-action-windows@main
-        with:
-          path: .
-          spec: lus4n-gui.spec
-
-      - name: 使用PyInstaller打包CLI
-        uses: JackMcKew/pyinstaller-action-windows@main
-        with:
-          path: .
-          spec: lus4n-cli.spec
+      - name: 使用PyInstaller打包CLI应用
+        run: |
+          pyinstaller --name lus4n-cli --onefile --console --hidden-import xxhash --hidden-import networkx --hidden-import joblib --hidden-import tqdm --hidden-import loguru --hidden-import luaparser lus4n/cli.py
+        shell: pwsh
 
       - name: 准备发布文件
         run: |
           mkdir releases -Force
           
-          if (Test-Path "dist\windows\lus4n-gui.exe") {
-            Compress-Archive -Path "dist\windows\lus4n-gui.exe" -DestinationPath "releases\lus4n-gui-windows.zip" -Force
+          if (Test-Path "dist\lus4n-gui.exe") {
+            Compress-Archive -Path "dist\lus4n-gui.exe" -DestinationPath "releases\lus4n-gui-windows.zip" -Force
             Write-Host "GUI版本打包成功"
           } else {
             Write-Host "找不到GUI可执行文件" -ForegroundColor Red
           }
           
-          if (Test-Path "dist\windows\lus4n-cli.exe") {
-            Compress-Archive -Path "dist\windows\lus4n-cli.exe" -DestinationPath "releases\lus4n-cli-windows.zip" -Force
+          if (Test-Path "dist\lus4n-cli.exe") {
+            Compress-Archive -Path "dist\lus4n-cli.exe" -DestinationPath "releases\lus4n-cli-windows.zip" -Force
             Write-Host "CLI版本打包成功"
           } else {
             Write-Host "找不到CLI可执行文件" -ForegroundColor Red
