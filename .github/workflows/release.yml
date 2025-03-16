@@ -24,18 +24,58 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
+          
+          # 确保关键依赖明确安装
+          pip install networkx
           pip install xxhash==3.5.0
+          pip install joblib tqdm loguru luaparser pyvis
+          pip install PySide6
+          
+          # 验证依赖是否成功安装
+          python -c "import networkx; import xxhash; import joblib; import tqdm; import loguru; import luaparser; import pyvis; print('所有依赖已成功安装')"
+          python -c "import PySide6; from PySide6 import QtWebEngineCore, QtWebEngineWidgets, QtWebChannel; print('PySide6依赖已成功安装')"
+          
+          # 安装PyInstaller
+          pip install pyinstaller==5.13.2
         shell: pwsh
 
       - name: 使用PyInstaller打包GUI应用
         run: |
-          pyinstaller --name lus4n-gui --onefile --noconsole --hidden-import xxhash --hidden-import networkx --hidden-import joblib --hidden-import tqdm --hidden-import loguru --hidden-import luaparser --hidden-import pyvis --hidden-import PySide6 --hidden-import PySide6.QtWebEngineCore --hidden-import PySide6.QtWebEngineWidgets --hidden-import PySide6.QtWebChannel lus4n/gui.py
+          # 使用绝对导入方式
+          pyinstaller --name lus4n-gui --onefile --noconsole `
+            --hidden-import networkx `
+            --hidden-import xxhash `
+            --hidden-import joblib `
+            --hidden-import tqdm `
+            --hidden-import loguru `
+            --hidden-import luaparser `
+            --hidden-import pyvis `
+            --hidden-import PySide6 `
+            --hidden-import PySide6.QtWebEngineCore `
+            --hidden-import PySide6.QtWebEngineWidgets `
+            --hidden-import PySide6.QtWebChannel `
+            --collect-all networkx `
+            lus4n/gui.py
         shell: pwsh
 
       - name: 使用PyInstaller打包CLI应用
         run: |
-          pyinstaller --name lus4n-cli --onefile --console --hidden-import xxhash --hidden-import networkx --hidden-import joblib --hidden-import tqdm --hidden-import loguru --hidden-import luaparser lus4n/cli.py
+          # 使用绝对导入方式
+          pyinstaller --name lus4n-cli --onefile --console `
+            --hidden-import networkx `
+            --hidden-import xxhash `
+            --hidden-import joblib `
+            --hidden-import tqdm `
+            --hidden-import loguru `
+            --hidden-import luaparser `
+            --collect-all networkx `
+            lus4n/cli.py
+        shell: pwsh
+
+      - name: 列出构建文件
+        run: |
+          Write-Host "=== 列出dist目录内容 ==="
+          Get-ChildItem -Path dist -Recurse | Format-Table Name, Length, LastWriteTime
         shell: pwsh
 
       - name: 准备发布文件
@@ -47,6 +87,7 @@ jobs:
             Write-Host "GUI版本打包成功"
           } else {
             Write-Host "找不到GUI可执行文件" -ForegroundColor Red
+            Get-ChildItem -Path dist -Recurse | Select-Object FullName
           }
           
           if (Test-Path "dist\lus4n-cli.exe") {
@@ -54,6 +95,7 @@ jobs:
             Write-Host "CLI版本打包成功"
           } else {
             Write-Host "找不到CLI可执行文件" -ForegroundColor Red
+            Get-ChildItem -Path dist -Recurse | Select-Object FullName
           }
         shell: pwsh
 
