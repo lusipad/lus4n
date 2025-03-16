@@ -40,7 +40,7 @@ class QueryTab(QWidget):
         self.settings = QSettings("Lusipad", "Lus4n")
         self.last_html_path = None
         
-        # 初始化UI
+        # 初始化 UI
         self.init_ui()
         
         # 加载上次使用的存储路径
@@ -49,7 +49,7 @@ class QueryTab(QWidget):
             self.storage_selector.set_storage_path(last_storage)
             
     def init_ui(self):
-        """初始化查询选项卡UI"""
+        """初始化查询选项卡 UI"""
         main_layout = QVBoxLayout(self)
         
         # 创建存储选择器
@@ -126,15 +126,20 @@ class QueryTab(QWidget):
         storage_path = self.storage_selector.get_storage_path()
         
         if not function_name:
-            QMessageBox.warning(self, "警告", "请输入函数名！")
+            QMessageBox.warning(self, "请输入函数名", "请输入函数名！")
             return
             
         if not storage_path or not os.path.exists(storage_path):
-            QMessageBox.warning(self, "警告", "存储文件不存在，请先扫描代码！")
+            msgBox = QMessageBox(self)
+            msgBox.setWindowTitle("存储路径错误")
+            msgBox.setText("请指定一个有效的存储路径")
+            msgBox.setIcon(QMessageBox.Warning)
+            msgBox.setStyleSheet("QLabel{min-width: 300px; color: black;}")
+            msgBox.exec_()
             return
         
         try:
-            self._update_status(f"正在查询函数: {function_name}...")
+            self._update_status(f"正在查询函数：{function_name}...")
             
             # 加载图数据
             graph = self.analyzer.load_graph(storage_path)
@@ -143,7 +148,7 @@ class QueryTab(QWidget):
             if function_name not in graph.nodes:
                 self.result_browser.setHtml(
                     f"<h3>函数不存在</h3>"
-                    f"<p>函数 '{function_name}' 在扫描的代码中不存在。</p>"
+                    f"<p>函数 '{function_name}' 在扫描的代码中不存在。请检查函数名是否正确或是否已扫描代码。</p>"
                 )
                 return
             
@@ -180,13 +185,13 @@ class QueryTab(QWidget):
             
             # 显示结果
             result_html = f"""
-            <h3>函数: {function_name}</h3>
+            <h3>函数：{function_name}</h3>
             <p>显示与 <b>{function_name}</b> 相关的调用关系。</p>
             <ul>
-                <li>函数数量: {len(function_nodes)}</li>
-                <li>文件数量: {len(file_nodes)}</li>
-                <li>总节点数: {len(filtered_nodes)}</li>
-                <li>关系边数: {net.num_edges}</li>
+                <li>函数数量：{len(function_nodes)}</li>
+                <li>文件数量：{len(file_nodes)}</li>
+                <li>总节点数：{len(filtered_nodes)}</li>
+                <li>关系边数：{net.num_edges}</li>
             </ul>
             <p><a href='file://{html_path}' target='_blank'>在浏览器中打开可视化</a></p>
             """
@@ -198,10 +203,12 @@ class QueryTab(QWidget):
             self._update_status("查询完成")
             
         except Exception as e:
-            self.result_browser.setHtml(
-                f"<h3>查询错误</h3>"
-                f"<p>查询函数 '{function_name}' 时发生错误: {str(e)}</p>"
-            )
+            msgBox = QMessageBox(self)
+            msgBox.setWindowTitle("查询错误")
+            msgBox.setText(f"查询函数 '{function_name}' 时发生错误：\n\n{str(e)}")
+            msgBox.setIcon(QMessageBox.Critical)
+            msgBox.setStyleSheet("QLabel{min-width: 400px; color: black;}")
+            msgBox.exec_()
             self._update_status("查询失败")
     
     def list_all_function_entries(self):
@@ -209,7 +216,12 @@ class QueryTab(QWidget):
         storage_path = self.storage_selector.get_storage_path()
         
         if not storage_path or not os.path.exists(storage_path):
-            QMessageBox.warning(self, "警告", "存储文件不存在，请先扫描代码！")
+            msgBox = QMessageBox(self)
+            msgBox.setWindowTitle("存储路径错误")
+            msgBox.setText("请指定一个有效的存储路径")
+            msgBox.setIcon(QMessageBox.Warning)
+            msgBox.setStyleSheet("QLabel{min-width: 300px; color: black;}")
+            msgBox.exec_()
             return
         
         try:
@@ -232,7 +244,7 @@ class QueryTab(QWidget):
             function_names = [func for func, _ in function_entries]
             self.function_query.update_completer_items(function_names)
             
-            # 构建HTML表格
+            # 构建 HTML 表格
             table_rows = ""
             for i, (func, count) in enumerate(function_entries):
                 bg_color = "#f5f5f5" if i % 2 == 0 else "white"
@@ -272,10 +284,12 @@ class QueryTab(QWidget):
             self._update_status("列出完成")
             
         except Exception as e:
-            self.result_browser.setHtml(
-                f"<h3>列出错误</h3>"
-                f"<p>列出函数入口点时发生错误: {str(e)}</p>"
-            )
+            msgBox = QMessageBox(self)
+            msgBox.setWindowTitle("列出错误")
+            msgBox.setText(f"列出函数入口点时发生错误：\n\n{str(e)}")
+            msgBox.setIcon(QMessageBox.Critical)
+            msgBox.setStyleSheet("QLabel{min-width: 400px; color: black;}")
+            msgBox.exec_()
             self._update_status("列出失败")
     
     def _handle_anchor_clicked(self, url):
@@ -292,7 +306,12 @@ class QueryTab(QWidget):
         storage_path = self.storage_selector.get_storage_path()
         
         if not storage_path or not os.path.exists(storage_path):
-            QMessageBox.warning(self, "警告", "存储文件不存在，请先扫描代码！")
+            msgBox = QMessageBox(self)
+            msgBox.setWindowTitle("存储路径错误")
+            msgBox.setText("请指定一个有效的存储路径")
+            msgBox.setIcon(QMessageBox.Warning)
+            msgBox.setStyleSheet("QLabel{min-width: 300px; color: black;}")
+            msgBox.exec_()
             return
         
         try:
@@ -336,13 +355,13 @@ class QueryTab(QWidget):
             <h3>所有函数关系</h3>
             <p>显示代码中所有函数的调用关系。</p>
             <ul>
-                <li>函数数量: {len(function_nodes)}</li>
-                <li>文件数量: {len(file_nodes)}</li>
-                <li>总节点数: {len(filtered_nodes)}</li>
-                <li>关系边数: {net.num_edges}</li>
+                <li>函数数量：{len(function_nodes)}</li>
+                <li>文件数量：{len(file_nodes)}</li>
+                <li>总节点数：{len(filtered_nodes)}</li>
+                <li>关系边数：{net.num_edges}</li>
             </ul>
             <p><a href='file://{html_path}' target='_blank'>在浏览器中打开可视化</a></p>
-            <p>说明: 节点大小和颜色深浅表示函数的重要性（被调用次数）。</p>
+            <p>说明：节点大小和颜色深浅表示函数的重要性（被调用次数）。</p>
             """
             
             self.result_browser.setHtml(result_html)
@@ -354,6 +373,6 @@ class QueryTab(QWidget):
         except Exception as e:
             self.result_browser.setHtml(
                 f"<h3>显示错误</h3>"
-                f"<p>显示所有函数关系时发生错误: {str(e)}</p>"
+                f"<p>显示所有函数关系时发生错误：{str(e)}</p>"
             )
             self._update_status("显示失败")

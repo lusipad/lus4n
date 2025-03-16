@@ -29,7 +29,7 @@ class ScanTab(QWidget):
         self.initUI()
     
     def initUI(self):
-        """初始化扫描选项卡UI"""
+        """初始化 UI 组件"""
         layout = QVBoxLayout(self)
         
         # 路径选择区域
@@ -119,15 +119,25 @@ class ScanTab(QWidget):
             self.scanning = False
     
     def start_scan(self):
-        """开始扫描操作"""
+        """开始扫描"""
         # 如果已经有一个扫描线程在运行，则返回
         if self.scanning:
-            QMessageBox.information(self, "正在扫描", "已经有一个扫描任务正在进行中")
+            msgBox = QMessageBox(self)
+            msgBox.setWindowTitle("扫描中")
+            msgBox.setText("当前已有扫描任务正在进行")
+            msgBox.setIcon(QMessageBox.Information)
+            msgBox.setStyleSheet("QLabel{min-width: 300px; color: black;}")
+            msgBox.exec_()
             return
 
         path = self.path_input.text()
         if not path or not os.path.exists(path):
-            QMessageBox.warning(self, "路径错误", "请选择有效的 Lua 代码路径")
+            msgBox = QMessageBox(self)
+            msgBox.setWindowTitle("路径错误")
+            msgBox.setText("请选择有效的 Lua 代码路径")
+            msgBox.setIcon(QMessageBox.Warning)
+            msgBox.setStyleSheet("QLabel{min-width: 300px; color: black;}")
+            msgBox.exec_()
             return
         
         storage = self.storage_input.text()
@@ -181,8 +191,13 @@ class ScanTab(QWidget):
         if hasattr(self.parent, 'query_tab') and self.parent.query_tab:
             self.parent.query_tab.set_storage_path(self.storage_input.text())
         
-        # 显示完成消息
-        QMessageBox.information(self, "扫描完成", f"扫描完成！\n发现 {len(d)} 个文件，{len(g.nodes)} 个节点\n结果已保存到：{self.storage_input.text()}")
+        # 显示完成消息 - 使用自定义格式确保内容可见
+        msgBox = QMessageBox(self)
+        msgBox.setWindowTitle("扫描完成")
+        msgBox.setText(f"扫描完成！\n\n发现 {len(d)} 个文件，{len(g.nodes)} 个节点\n\n结果已保存到：{self.storage_input.text()}")
+        msgBox.setIcon(QMessageBox.Information)
+        msgBox.setStyleSheet("QLabel{min-width: 400px; color: black;}")
+        msgBox.exec_()
         
         # 通知主窗口保存设置
         if hasattr(self.parent, 'save_settings'):
@@ -193,8 +208,13 @@ class ScanTab(QWidget):
         # 记录错误
         self.log(f"扫描出错：{error_msg}")
         
-        # 显示错误消息
-        QMessageBox.critical(self, "扫描错误", f"扫描过程中发生错误：{error_msg}")
+        # 显示错误消息 - 使用自定义格式确保内容可见
+        msgBox = QMessageBox(self)
+        msgBox.setWindowTitle("扫描错误")
+        msgBox.setText(f"扫描过程中发生错误：\n\n{str(error_msg)}")
+        msgBox.setIcon(QMessageBox.Critical)
+        msgBox.setStyleSheet("QLabel{min-width: 400px; color: black;}")
+        msgBox.exec_()
     
     def get_path(self):
         """获取当前路径"""

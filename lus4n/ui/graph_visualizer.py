@@ -101,7 +101,15 @@ class GraphVisualizer:
         
         # 设置物理引擎
         if not show_physics:
-            net.toggle_physics(False)
+            # 使用options直接设置物理引擎状态，避免使用toggle_physics可能导致的错误
+            physics_options = """
+            {
+              "physics": {
+                "enabled": false
+              }
+            }
+            """
+            net.set_options(physics_options)
         
         # 添加查询节点
         if query_node and query_node in nodes:
