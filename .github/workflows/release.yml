@@ -34,16 +34,34 @@ jobs:
               New-Item -Path $dir -ItemType Directory | Out-Null
           }
           
+          # Create hook file for luaparser
+          Write-Host "Creating hook file for luaparser..." -ForegroundColor Yellow
+          $hookDir = ".\hooks"
+          if (!(Test-Path $hookDir)) {
+              New-Item -Path $hookDir -ItemType Directory | Out-Null
+          }
+          $hookContent = @"
+# PyInstaller hook for luaparser
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+
+# Make sure all submodules are included
+hiddenimports = collect_submodules('luaparser')
+
+# Include any data files
+datas = collect_data_files('luaparser')
+"@
+          Set-Content -Path "$hookDir\hook-luaparser.py" -Value $hookContent
+          
           # Get CPU core count for parallel compilation
           $cpuCores = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
           
           # Package GUI application
           Write-Host "Packaging GUI application (using $cpuCores CPU cores)..." -ForegroundColor Green
-          pyinstaller --clean --noconfirm --onedir --name "lus4n-gui" --windowed lus4n/gui.py
+          pyinstaller --clean --noconfirm --onedir --name "lus4n-gui" --windowed --additional-hooks-dir=hooks lus4n/gui.py
           
           # Package command-line application
           Write-Host "Packaging command-line application..." -ForegroundColor Green
-          pyinstaller --clean --noconfirm --onedir --name "lus4n-cli" lus4n/cli.py
+          pyinstaller --clean --noconfirm --onedir --name "lus4n-cli" --additional-hooks-dir=hooks lus4n/cli.py
           
           # Check generated executable files
           $guiExe = ".\dist\lus4n-gui\lus4n-gui.exe"
