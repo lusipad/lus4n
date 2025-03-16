@@ -24,24 +24,29 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          
-          # 确保关键依赖明确安装
-          pip install networkx
-          pip install xxhash==3.5.0
-          pip install joblib tqdm loguru luaparser pyvis
-          pip install PySide6
-          
-          # 验证依赖是否成功安装
-          python -c "import networkx; import xxhash; import joblib; import tqdm; import loguru; import luaparser; import pyvis; print('所有依赖已成功安装')"
-          python -c "import PySide6; from PySide6 import QtWebEngineCore, QtWebEngineWidgets, QtWebChannel; print('PySide6依赖已成功安装')"
-          
-          # 安装PyInstaller
+          pip install networkx xxhash==3.5.0 joblib tqdm loguru luaparser pyvis PySide6
           pip install pyinstaller==5.13.2
+        shell: pwsh
+
+      - name: 创建辅助脚本
+        run: |
+          $line1 = "import os, sys, pyvis"
+          $line2 = "pyvis_dir = os.path.dirname(pyvis.__file__)"
+          $line3 = "templates_dir = os.path.join(pyvis_dir, 'templates')"
+          $line4 = "print(f'{templates_dir};pyvis/templates')"
+          $line1 | Out-File -FilePath "get_pyvis_paths.py"
+          $line2 | Add-Content -Path "get_pyvis_paths.py"
+          $line3 | Add-Content -Path "get_pyvis_paths.py"
+          $line4 | Add-Content -Path "get_pyvis_paths.py"
+          
+          Get-Content -Path "get_pyvis_paths.py"
         shell: pwsh
 
       - name: 使用PyInstaller打包GUI应用
         run: |
-          # 使用绝对导入方式
+          $pyvisDatas = python get_pyvis_paths.py
+          Write-Host "Pyvis模板路径: $pyvisDatas"
+          
           pyinstaller --name lus4n-gui --onefile --noconsole `
             --hidden-import networkx `
             --hidden-import xxhash `
@@ -55,12 +60,16 @@ jobs:
             --hidden-import PySide6.QtWebEngineWidgets `
             --hidden-import PySide6.QtWebChannel `
             --collect-all networkx `
+            --collect-all pyvis `
+            --add-data "$pyvisDatas" `
             lus4n/gui.py
         shell: pwsh
 
       - name: 使用PyInstaller打包CLI应用
         run: |
-          # 使用绝对导入方式
+          $pyvisDatas = python get_pyvis_paths.py
+          Write-Host "Pyvis模板路径: $pyvisDatas"
+          
           pyinstaller --name lus4n-cli --onefile --console `
             --hidden-import networkx `
             --hidden-import xxhash `
@@ -69,12 +78,14 @@ jobs:
             --hidden-import loguru `
             --hidden-import luaparser `
             --collect-all networkx `
+            --collect-all pyvis `
+            --add-data "$pyvisDatas" `
             lus4n/cli.py
         shell: pwsh
 
       - name: 列出构建文件
         run: |
-          Write-Host "=== 列出dist目录内容 ==="
+          Write-Host "== 列出dist目录内容 =="
           Get-ChildItem -Path dist -Recurse | Format-Table Name, Length, LastWriteTime
         shell: pwsh
 
@@ -112,6 +123,7 @@ jobs:
             
             ### 修复:
             - 修复了xxhash模块缺失导致程序无法启动的问题
+            - 修复了pyvis模板文件缺失问题
           files: |
             ./releases/lus4n-gui-windows.zip
             ./releases/lus4n-cli-windows.zip
