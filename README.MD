@@ -1,7 +1,9 @@
 # lus4n
 
 ## 作者
-C0ss4ck / lusipad
+原作者项目：C0ss4ck [Cossack9989/lus4n: Generate lua call graph](https://github.com/Cossack9989/lus4n)
+
+主要做了一些 GUI 之类的工作，来满足实际使用需要
 
 ## 项目简介
 lus4n 是一个基于 AST (抽象语法树) 分析的 Lua 代码调用图生成工具。它可以扫描 Lua 代码文件，构建函数调用关系图，并支持查询和可视化特定函数的调用关系。
@@ -177,7 +179,7 @@ git push origin v1.2.0
 ## 版本历史
 ## v1.3.0 (2025-03-16)
 - 增加了 windows 打包支持
- 
+
 ### v1.2.0 (2025-03-16)
 - 重构GUI代码，提高可维护性和扩展性
 - 添加"显示所有函数入口"功能，按调用次数排序
