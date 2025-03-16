@@ -66,12 +66,16 @@ class ScanThread(QThread):
                     file_path = os.path.join(path, file_name)
                     all_files.append(file_path)
                     
-                    # 检查文件是否有指定的后缀
+                    # 1. 首先检查文件是否有指定的后缀，不符合的直接跳过
                     has_valid_extension = any(file_name.endswith(ext) for ext in self.extensions)
-                    if has_valid_extension:
-                        valid_extension_files.append(file_path)
+                    if not has_valid_extension:
+                        _, ext = os.path.splitext(file_name)
+                        skipped_files.append((file_path, f"不符合的文件后缀：{ext}"))
+                        continue
                     
-                    # 首先检查文件是否存在
+                    valid_extension_files.append(file_path)
+                    
+                    # 检查文件是否存在
                     if not os.path.exists(file_path):
                         skipped_files.append((file_path, "文件不存在"))
                         continue
@@ -84,34 +88,34 @@ class ScanThread(QThread):
                             skipped_files.append((file_path, f"文件读取错误：{str(e)}"))
                             continue
                         
-                        # 检查是否是二进制/加密文件
-                        binary_check = False
-                        for i, byte in enumerate(content[:1024]):
-                            # 控制字符（非打印字符），排除换行符、回车符和制表符
-                            if byte < 32 and byte not in (9, 10, 13) or byte >= 127:
-                                binary_check = True
-                                break
-                                
-                        if b'\x00' in content[:1024] or binary_check:
-                            skipped_files.append((file_path, "二进制/加密文件"))
+                        # 2. 检查是否是 lua 字节码文件，不是字节码的就当作文本处理
+                        if content.startswith(b"\x1bL"):
+                            skipped_files.append((file_path, "Lua 字节码文件"))
                             continue
+                            
+                        # 直接进行编码检测，不再检查二进制特征
+                        # 尝试检测编码
+                        encodings_to_try = ['utf-8', 'GBK', 'GB2312', 'latin-1']
+                        detected_encoding = None
+                        decoded_content = None
                         
-                        # 添加文件到扫描列表的条件：
-                        # 1. 有效的后缀名且不是Lua字节码
-                        # 2. 以 #!/usr/bin/lua 开头的任何文件
-                        # 3. 文件内容具有Lua特征（如有"--"注释）
-                        if has_valid_extension and not content.startswith(b"\x1bL"):
-                            will_scan.append(file_path)
-                        elif content.startswith(b"#!/usr/bin/lua"):
-                            will_scan.append(file_path)
-                        # 检查文件内容是否具有Lua特征（以"--"开始的注释行）
-                        elif b"--" in content[:1024]:
-                            will_scan.append(file_path)
-                            # 特征检测不打印提示，按照用户要求
-                        else:
-                            # 记录文件的扩展名，以便进一步分析
-                            _, ext = os.path.splitext(file_name)
-                            skipped_files.append((file_path, f"无效的文件类型：{ext}"))
+                        for encoding in encodings_to_try:
+                            try:
+                                decoded_content = content.decode(encoding)
+                                detected_encoding = encoding
+                                break
+                            except UnicodeDecodeError:
+                                continue
+                        
+                        if detected_encoding is None:
+                            skipped_files.append((file_path, "无法解码的文件编码"))
+                            continue
+                            
+                        # 添加文件到扫描列表的条件
+                        # 对于用户指定后缀的文件，直接处理，不再检查是否有 Lua 特征
+                        will_scan.append((file_path, detected_encoding))
+                        if detected_encoding != 'utf-8':
+                            self.update_log.emit(f"文件 {file_path} 使用 {detected_encoding} 编码")
                     except PermissionError:
                         skipped_files.append((file_path, "权限错误"))
                     except Exception as e:
@@ -123,7 +127,7 @@ class ScanThread(QThread):
             
             # 显示符合后缀的文件列表
             if valid_extension_files:
-                self.update_log.emit("\n符合后缀的文件列表（前100个）：")
+                self.update_log.emit("\n符合后缀的文件列表（前 100 个）：")
                 for file_path in valid_extension_files[:100]:  # 限制显示数量
                     rel_path = os.path.relpath(file_path, self.path)
                     self.update_log.emit(f"- {rel_path}")
@@ -133,9 +137,10 @@ class ScanThread(QThread):
             
             # 处理收集到的文件
             self.update_log.emit("\n开始处理文件...")
-            processed_files = {}  # 记录处理过的文件及其状态
-            
-            for i, file_path in enumerate(will_scan):
+            processed_files = {}  # 记录处理状态
+            nodes_count = 0
+
+            for i, (file_path, encoding) in enumerate(will_scan):
                 if self.stopped:
                     self.update_status.emit("扫描已中止")
                     return
@@ -147,7 +152,8 @@ class ScanThread(QThread):
                 # 扫描单个文件
                 rel_path = os.path.relpath(file_path, self.path)
                 try:
-                    _, call_graph, require, status = scan_one_file(file_path, "json", False)
+                    # 使用检测到的编码解析文件
+                    _, call_graph, require, status = scan_one_file(file_path, "json", False, encoding)
                     
                     # 记录处理状态
                     processed_files[rel_path] = status
@@ -191,7 +197,7 @@ class ScanThread(QThread):
                     self.update_log.emit(f"解析 {rel_path} 时出错：{str(e)}")
                     processed_files[rel_path] = f"解析错误：{str(e)}"
                 
-                # 每处理20个文件显示一次状态
+                # 每处理 20 个文件显示一次状态
                 if (i + 1) % 20 == 0 or i == len(will_scan) - 1:
                     self.update_log.emit(f"已处理：{i + 1}/{len(will_scan)} 个文件")
             
@@ -218,7 +224,7 @@ class ScanThread(QThread):
             # 只显示一部分处理状态，以免日志过长
             shown_files = list(processed_files.items())[:50]
             for rel_path, status in shown_files:
-                self.update_log.emit(f"- {rel_path}：{status}")
+                self.update_log.emit(f"- {rel_path}:{status}")
             
             if len(processed_files) > 50:
                 self.update_log.emit(f"... 还有 {len(processed_files) - 50} 个文件 (未显示)")
