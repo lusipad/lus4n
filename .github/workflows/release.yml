@@ -1,0 +1,98 @@
+name: Auto Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggered when pushing tags with v prefix like v1.2.0
+  
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Python environment
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      
+      - name: Package application
+        run: |
+          # Clean up old output directories
+          $outputDirs = @(".\dist", ".\build", ".\releases")
+          foreach ($dir in $outputDirs) {
+              if (Test-Path $dir) {
+                  Remove-Item -Path $dir -Recurse -Force
+              }
+              New-Item -Path $dir -ItemType Directory | Out-Null
+          }
+          
+          # Get CPU core count for parallel compilation
+          $cpuCores = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+          
+          # Package GUI application
+          Write-Host "Packaging GUI application (using $cpuCores CPU cores)..." -ForegroundColor Green
+          pyinstaller --clean --noconfirm --onedir --name "lus4n-gui" --windowed lus4n/gui.py
+          
+          # Package command-line application
+          Write-Host "Packaging command-line application..." -ForegroundColor Green
+          pyinstaller --clean --noconfirm --onedir --name "lus4n-cli" lus4n/cli.py
+          
+          # Check generated executable files
+          $guiExe = ".\dist\lus4n-gui\lus4n-gui.exe"
+          $cliExe = ".\dist\lus4n-cli\lus4n-cli.exe"
+          
+          if (!(Test-Path $guiExe) -or !(Test-Path $cliExe)) {
+              Write-Host "Packaging failed, cannot find generated executable files!" -ForegroundColor Red
+              exit 1
+          }
+          
+          # Create release packages
+          mkdir releases -Force
+          Compress-Archive -Path ".\dist\lus4n-gui\*" -DestinationPath ".\releases\lus4n-gui-windows.zip" -Force
+          Compress-Archive -Path ".\dist\lus4n-cli\*" -DestinationPath ".\releases\lus4n-cli-windows.zip" -Force
+
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: lus4n ${{ github.ref_name }}
+          body: |
+            lus4n ${{ github.ref_name }} release
+            
+            ### Includes:
+            - Windows GUI version (lus4n-gui-windows.zip)
+            - Windows command-line version (lus4n-cli-windows.zip)
+            
+            ### Dependency updates:
+            - All dependencies have been updated to the latest stable version
+      
+      - name: Upload GUI version
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./releases/lus4n-gui-windows.zip
+          asset_name: lus4n-gui-windows.zip
+          asset_content_type: application/zip
+          
+      - name: Upload CLI version
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./releases/lus4n-cli-windows.zip
+          asset_name: lus4n-cli-windows.zip
+          asset_content_type: application/zip

@@ -12,7 +12,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, 
     QLineEdit, QPushButton, QTextEdit, QFileDialog, 
     QComboBox, QMessageBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QSplitter, QStackedWidget, QApplication
+    QHeaderView, QSplitter, QStackedWidget, QApplication,
+    QLabel, QSlider, QCheckBox, QRadioButton, QButtonGroup
 )
 from PySide6.QtCore import Qt
 from joblib import load
@@ -63,6 +64,57 @@ class QueryTab(QWidget):
         function_layout.addWidget(query_btn)
         function_layout.addWidget(list_all_btn)
         layout.addWidget(function_group)
+        
+        # 可视化设置区域
+        visual_group = QGroupBox("可视化设置")
+        visual_layout = QVBoxLayout(visual_group)
+        
+        # 布局选择
+        layout_selection_layout = QHBoxLayout()
+        layout_label = QLabel("布局方式:")
+        layout_label.setStyleSheet("QLabel { color: black; }")
+        self.layout_combo = QComboBox()
+        self.layout_combo.addItems(["力导向布局", "分层布局(上到下)", "分层布局(左到右)", "圆形布局", "放射状布局"])
+        layout_selection_layout.addWidget(layout_label)
+        layout_selection_layout.addWidget(self.layout_combo)
+        visual_layout.addLayout(layout_selection_layout)
+        
+        # 节点筛选
+        filter_layout = QHBoxLayout()
+        self.show_files_checkbox = QCheckBox("显示文件节点")
+        self.show_files_checkbox.setChecked(True)
+        self.show_files_checkbox.setStyleSheet("QCheckBox { color: black; }")
+        self.max_nodes_label = QLabel("最大显示节点数:")
+        self.max_nodes_label.setStyleSheet("QLabel { color: black; }")
+        self.max_nodes_slider = QSlider(Qt.Horizontal)
+        self.max_nodes_slider.setMinimum(10)
+        self.max_nodes_slider.setMaximum(200)
+        self.max_nodes_slider.setValue(100)
+        self.max_nodes_slider.setTickPosition(QSlider.TicksBelow)
+        self.max_nodes_slider.setTickInterval(10)
+        self.max_nodes_value = QLabel("100")
+        self.max_nodes_value.setStyleSheet("QLabel { color: black; }")
+        self.max_nodes_slider.valueChanged.connect(lambda v: self.max_nodes_value.setText(str(v)))
+        
+        filter_layout.addWidget(self.show_files_checkbox)
+        filter_layout.addWidget(self.max_nodes_label)
+        filter_layout.addWidget(self.max_nodes_slider)
+        filter_layout.addWidget(self.max_nodes_value)
+        visual_layout.addLayout(filter_layout)
+        
+        # 高级选项
+        advanced_layout = QHBoxLayout()
+        self.physics_checkbox = QCheckBox("启用物理引擎")
+        self.physics_checkbox.setChecked(True)
+        self.physics_checkbox.setStyleSheet("QCheckBox { color: black; }")
+        self.node_size_checkbox = QCheckBox("根据重要性调整节点大小")
+        self.node_size_checkbox.setChecked(True)
+        self.node_size_checkbox.setStyleSheet("QCheckBox { color: black; }")
+        advanced_layout.addWidget(self.physics_checkbox)
+        advanced_layout.addWidget(self.node_size_checkbox)
+        visual_layout.addLayout(advanced_layout)
+        
+        layout.addWidget(visual_group)
         
         # 最近查询记录
         recent_group = QGroupBox("最近查询")
@@ -181,13 +233,123 @@ class QueryTab(QWidget):
                 if query not in nodes:
                     nodes.add(query)
                 
+                # 应用节点筛选
+                filtered_nodes = set()
+                
+                # 检查是否显示文件节点
+                if not self.show_files_checkbox.isChecked():
+                    nodes = {n for n in nodes if not (
+                        "role" in g.nodes[n] and g.nodes[n]["role"] == "file")}
+                
+                # 限制最大节点数
+                max_nodes = self.max_nodes_slider.value()
+                if len(nodes) > max_nodes:
+                    # 优先保留查询节点和重要节点
+                    important_nodes = {query}
+                    
+                    # 按节点的度数(重要性)排序并取前N个
+                    other_nodes = nodes - important_nodes
+                    node_importance = {
+                        n: g.in_degree(n) + g.out_degree(n) 
+                        for n in other_nodes
+                    }
+                    sorted_nodes = sorted(
+                        other_nodes, 
+                        key=lambda n: node_importance.get(n, 0), 
+                        reverse=True
+                    )
+                    filtered_nodes = important_nodes | set(sorted_nodes[:max_nodes-len(important_nodes)])
+                else:
+                    filtered_nodes = nodes
+                
                 # 创建子图
-                sg = g.subgraph(nodes)
+                sg = g.subgraph(filtered_nodes)
                 
                 # 生成可视化
-                net = Network(notebook=True)
-                net.add_node(query)
-                net.from_nx(sg)
+                net = Network(notebook=True, height="800px", width="100%")
+                
+                # 设置布局
+                layout_option = self.layout_combo.currentText()
+                if layout_option == "分层布局(上到下)":
+                    net.set_options("""
+                    {
+                      "layout": {
+                        "hierarchical": {
+                          "enabled": true,
+                          "direction": "UD",
+                          "sortMethod": "directed",
+                          "nodeSpacing": 150,
+                          "levelSeparation": 150
+                        }
+                      }
+                    }
+                    """)
+                elif layout_option == "分层布局(左到右)":
+                    net.set_options("""
+                    {
+                      "layout": {
+                        "hierarchical": {
+                          "enabled": true,
+                          "direction": "LR",
+                          "sortMethod": "directed",
+                          "nodeSpacing": 150,
+                          "levelSeparation": 150
+                        }
+                      }
+                    }
+                    """)
+                elif layout_option == "圆形布局":
+                    net.set_options("""
+                    {
+                      "layout": {
+                        "circular": {
+                          "enabled": true
+                        }
+                      }
+                    }
+                    """)
+                elif layout_option == "放射状布局":
+                    net.set_options("""
+                    {
+                      "layout": {
+                        "improvedLayout": true
+                      }
+                    }
+                    """)
+                
+                # 设置物理引擎
+                if not self.physics_checkbox.isChecked():
+                    net.toggle_physics(False)
+                
+                # 添加节点并调整大小
+                net.add_node(query, color="#FF6D3F", size=25, title=f"查询: {query}")
+                
+                # 根据节点重要性调整大小
+                if self.node_size_checkbox.isChecked():
+                    for node in sg.nodes():
+                        if node != query:
+                            # 计算节点度数作为重要性
+                            importance = sg.in_degree(node) + sg.out_degree(node)
+                            size = min(10 + importance * 2, 30)  # 限制最大尺寸
+                            
+                            # 设置节点颜色
+                            if "role" in g.nodes[node] and g.nodes[node]["role"] == "file":
+                                color = "#6BAED6"  # 蓝色表示文件
+                            else:
+                                # 函数节点根据入度(被调用次数)设置颜色深浅
+                                in_degree = sg.in_degree(node)
+                                if in_degree > 10:
+                                    color = "#2C7FB8"  # 深蓝色表示重要函数
+                                elif in_degree > 5:
+                                    color = "#7FCDBB"  # 中等蓝绿色
+                                else:
+                                    color = "#C7E9B4"  # 浅绿色
+                            
+                            net.add_node(node, size=size, color=color, title=f"{node} (被调用: {sg.in_degree(node)})")
+                
+                # 从networkx导入边
+                for edge in sg.edges():
+                    net.add_edge(edge[0], edge[1])
                 
                 # 保存并显示
                 show_path = os.path.join(self.temp_dir, f"{uuid.uuid4()}.html")
@@ -197,6 +359,7 @@ class QueryTab(QWidget):
                 self.result_text.append(f"查询函数：{query}")
                 self.result_text.append(f"相关函数数量：{len(func_node_list)}")
                 self.result_text.append(f"相关文件数量：{len(file_node_list)}")
+                self.result_text.append(f"显示节点数量：{len(filtered_nodes)}/{len(nodes)}")
                 self.result_text.append("\n--- 相关函数 ---")
                 for func in func_node_list:
                     self.result_text.append(func)

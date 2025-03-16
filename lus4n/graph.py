@@ -9,7 +9,7 @@ from luaparser import ast
 from luaparser.astnodes import *
 from luaparser.utils.visitor import *
 from luaparser.printers import PythonStyleVisitor
-from luaparser.builder import SyntaxException
+from luaparser.ast import SyntaxException
 
 
 def scan_one_file(file_path: str, _format="json", _debug=False):
