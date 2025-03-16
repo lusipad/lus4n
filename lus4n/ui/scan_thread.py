@@ -55,6 +55,7 @@ class ScanThread(QThread):
             # 遍历目录，收集文件
             all_files = []  # 记录所有文件
             skipped_files = []  # 记录跳过的文件
+            valid_extension_files = []  # 记录符合扩展名的文件
             
             for path, dir_list, file_list in os.walk(self.path):
                 for file_name in file_list:
@@ -65,10 +66,23 @@ class ScanThread(QThread):
                     file_path = os.path.join(path, file_name)
                     all_files.append(file_path)
                     
+                    # 检查文件是否有指定的后缀
+                    has_valid_extension = any(file_name.endswith(ext) for ext in self.extensions)
+                    if has_valid_extension:
+                        valid_extension_files.append(file_path)
+                    
+                    # 首先检查文件是否存在
+                    if not os.path.exists(file_path):
+                        skipped_files.append((file_path, "文件不存在"))
+                        continue
+                    
                     try:
-                        content = open(file_path, "rb").read()
-                        # 检查文件是否有指定的后缀
-                        has_valid_extension = any(file_name.endswith(ext) for ext in self.extensions)
+                        # 检查文件是否可读取
+                        try:
+                            content = open(file_path, "rb").read()
+                        except (PermissionError, IOError) as e:
+                            skipped_files.append((file_path, f"文件读取错误：{str(e)}"))
+                            continue
                         
                         # 检查是否是二进制/加密文件
                         binary_check = False
@@ -85,29 +99,37 @@ class ScanThread(QThread):
                         # 添加文件到扫描列表的条件：
                         # 1. 有效的后缀名且不是Lua字节码
                         # 2. 以 #!/usr/bin/lua 开头的任何文件
+                        # 3. 文件内容具有Lua特征（如有"--"注释）
                         if has_valid_extension and not content.startswith(b"\x1bL"):
                             will_scan.append(file_path)
                         elif content.startswith(b"#!/usr/bin/lua"):
                             will_scan.append(file_path)
+                        # 检查文件内容是否具有Lua特征（以"--"开始的注释行）
+                        elif b"--" in content[:1024]:
+                            will_scan.append(file_path)
+                            # 特征检测不打印提示，按照用户要求
                         else:
-                            skipped_files.append((file_path, "无效的文件类型"))
+                            # 记录文件的扩展名，以便进一步分析
+                            _, ext = os.path.splitext(file_name)
+                            skipped_files.append((file_path, f"无效的文件类型：{ext}"))
                     except PermissionError:
                         skipped_files.append((file_path, "权限错误"))
                     except Exception as e:
-                        skipped_files.append((file_path, f"未知错误: {str(e)}"))
+                        skipped_files.append((file_path, f"未知错误：{str(e)}"))
             
             self.update_log.emit(f"扫描范围：共找到 {len(all_files)} 个文件")
-            self.update_log.emit(f"将处理 {len(will_scan)} 个文件，跳过 {len(skipped_files)} 个文件")
+            self.update_log.emit(f"符合后缀的文件：{len(valid_extension_files)} 个")
+            self.update_log.emit(f"将处理 {len(will_scan)} 个文件")
             
-            # 显示跳过文件列表
-            if skipped_files:
-                self.update_log.emit("\n跳过的文件列表：")
-                for file_path, reason in skipped_files[:100]:  # 限制显示数量
+            # 显示符合后缀的文件列表
+            if valid_extension_files:
+                self.update_log.emit("\n符合后缀的文件列表（前100个）：")
+                for file_path in valid_extension_files[:100]:  # 限制显示数量
                     rel_path = os.path.relpath(file_path, self.path)
-                    self.update_log.emit(f"- {rel_path}：{reason}")
+                    self.update_log.emit(f"- {rel_path}")
                 
-                if len(skipped_files) > 100:
-                    self.update_log.emit(f"... 还有 {len(skipped_files) - 100} 个文件被跳过 (未显示)")
+                if len(valid_extension_files) > 100:
+                    self.update_log.emit(f"... 还有 {len(valid_extension_files) - 100} 个符合后缀的文件 (未显示)")
             
             # 处理收集到的文件
             self.update_log.emit("\n开始处理文件...")

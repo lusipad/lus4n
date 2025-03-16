@@ -225,71 +225,54 @@ class QueryTab(QWidget):
             return
         
         try:
-            self._update_status("正在列出所有函数入口点...")
+            self._update_status("正在加载并分析函数入口点...")
             
             # 加载图数据
-            graph = self.analyzer.load_graph(storage_path)
+            self.analyzer.load_graph(storage_path)
             
-            # 获取所有函数入口点
-            function_entries = self.analyzer.get_all_function_entries()
+            # 获取函数入口点
+            entries = self.analyzer.get_function_entries()
             
-            if not function_entries:
+            if not entries:
                 self.result_browser.setHtml(
-                    "<h3>没有找到函数入口点</h3>"
-                    "<p>在扫描的代码中没有找到任何被调用的函数。</p>"
+                    "<h3>未找到函数入口点</h3>"
+                    "<p>在扫描的代码中没有找到任何函数入口点。</p>"
+                    "<p>这可能是因为：</p>"
+                    "<ul>"
+                    "<li>代码中没有定义任何函数</li>"
+                    "<li>所有函数都被其他函数调用（没有顶层入口）</li>"
+                    "<li>解析过程中出现了问题</li>"
+                    "</ul>"
                 )
+                self._update_status("未找到函数入口点")
                 return
             
-            # 更新函数自动完成
-            function_names = [func for func, _ in function_entries]
-            self.function_query.update_completer_items(function_names)
+            # 按名称排序
+            entries.sort()
             
-            # 构建 HTML 表格
-            table_rows = ""
-            for i, (func, count) in enumerate(function_entries):
-                bg_color = "#f5f5f5" if i % 2 == 0 else "white"
-                table_rows += f"""
-                <tr style="background-color: {bg_color}">
-                    <td style="padding: 5px">{i+1}</td>
-                    <td style="padding: 5px">
-                        <a href="function:{func}" 
-                           style="font-family: 'Courier New', monospace; font-size: 14px; color: #000000; text-decoration: none;">
-                            {func}
-                        </a>
-                    </td>
-                    <td style="padding: 5px; text-align: center">{count}</td>
-                </tr>
-                """
-            
-            # 显示结果
-            result_html = f"""
+            # 生成HTML显示结果
+            html = f"""
             <h3>函数入口点列表</h3>
-            <p>以下是在代码中被调用的所有函数列表，按被调用次数排序：</p>
-            <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd; font-size: 14px;">
-                <tr style="background-color: #f2f2f2">
-                    <th style="padding: 8px; text-align: left">#</th>
-                    <th style="padding: 8px; text-align: left">函数名称</th>
-                    <th style="padding: 8px; text-align: center">被调用次数</th>
-                </tr>
-                {table_rows}
-            </table>
-            <p>点击函数名将其添加到查询框。共计 {len(function_entries)} 个函数入口。</p>
+            <p>共找到 {len(entries)} 个函数入口点（未被其他函数调用的函数）：</p>
+            <ul>
             """
             
-            self.result_browser.setHtml(result_html)
-            # 设置链接点击处理
-            self.result_browser.anchorClicked.connect(self._handle_anchor_clicked)
-            self.result_browser.setOpenLinks(False)  # 让应用自己处理链接
+            for entry in entries:
+                html += f"<li><a href='function:{entry}'>{entry}</a></li>"
             
-            self._update_status("列出完成")
+            html += """
+            </ul>
+            <p>点击函数名可以查看该函数的调用关系。</p>
+            """
+            
+            self.result_browser.setHtml(html)
+            self._update_status(f"显示了 {len(entries)} 个函数入口点")
             
         except Exception as e:
-            msgBox = QMessageBox(self)
-            msgBox.setWindowTitle("列出错误")
-            msgBox.setText(f"列出函数入口点时发生错误：\n\n{str(e)}")
-            msgBox.setIcon(QMessageBox.Critical)
-            msgBox.setStyleSheet("QLabel{min-width: 400px; color: black;}")
-            msgBox.exec_()
+            self.result_browser.setHtml(
+                f"<h3>列出错误</h3>"
+                f"<p>列出函数入口点时发生错误：{str(e)}</p>"
+            )
             self._update_status("列出失败")
     
     def _handle_anchor_clicked(self, url):
