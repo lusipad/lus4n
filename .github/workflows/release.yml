@@ -1,213 +1,88 @@
-name: Auto Build and Release
+name: 自动构建发布
 
 on:
   push:
     tags:
-      - 'v*'  # Triggered when pushing tags with v prefix like v1.2.0
-  
+      - 'v*'
+  workflow_dispatch:
+
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout code
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Setup Python environment
+      - name: 设置Python环境
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-          
-      - name: Install dependencies
+
+      - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-          
-          # 确保xxhash安装正确
-          pip uninstall -y xxhash
           pip install xxhash==3.5.0
-      
-      - name: Create helper xxhash.py
         shell: pwsh
-        run: |
-          $xxhashContent = "try:`n    import xxhash`nexcept ImportError:`n    raise ImportError('xxhash module could not be imported')"
-          Set-Content -Path "xxhash.py" -Value $xxhashContent
-          
-          # 修改graph.py导入方式
-          $graphPath = "lus4n\graph.py"
-          $graphContent = Get-Content $graphPath -Raw
-          $newGraphContent = $graphContent -replace "import xxhash", "import xxhash as xxh`r`nimport sys`r`nsys.modules['xxhash'] = xxh"
-          Set-Content -Path $graphPath -Value $newGraphContent
-      
-      - name: Create xxhash hook
-        shell: pwsh
-        run: |
-          $hookDir = ".\hooks"
-          if (!(Test-Path $hookDir)) {
-              New-Item -Path $hookDir -ItemType Directory | Out-Null
-          }
-          
-          $content = "from PyInstaller.utils.hooks import collect_data_files`n`n# PyInstaller hook for xxhash`nhiddenimports = ['xxhash']`n`n# Critical dependency`ndef hook(hook_api):`n    hook_api.add_imports(['xxhash'])`n    # Add binary module`n    for path in hook_api.__path__:`n        if 'xxhash' in path.lower():`n            hook_api.add_datas([(path, 'xxhash')])"
-          Set-Content -Path "$hookDir\hook-xxhash.py" -Value $content
-      
-      - name: Create luaparser hook
-        shell: pwsh
-        run: |
-          $hookDir = ".\hooks"
-          if (!(Test-Path $hookDir)) {
-              New-Item -Path $hookDir -ItemType Directory | Out-Null
-          }
-          
-          $content = "from PyInstaller.utils.hooks import collect_submodules, collect_data_files`n`n# Include all submodules`nhiddenimports = collect_submodules('luaparser')`n`n# Include data files`ndatas = collect_data_files('luaparser')"
-          Set-Content -Path "$hookDir\hook-luaparser.py" -Value $content
-      
-      - name: Create PySide6 hook
-        shell: pwsh
-        run: |
-          $hookDir = ".\hooks"
-          if (!(Test-Path $hookDir)) {
-              New-Item -Path $hookDir -ItemType Directory | Out-Null
-          }
-          
-          $content = "from PyInstaller.utils.hooks import collect_submodules, collect_data_files`n`n# Include all submodules`nhiddenimports = collect_submodules('PySide6')`n`n# Include QtWebEngine components`nhiddenimports += ['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'PySide6.QtWebChannel']`n`n# Include data files`ndatas = collect_data_files('PySide6')"
-          Set-Content -Path "$hookDir\hook-PySide6.py" -Value $content
-      
-      - name: Create pyvis hook
-        shell: pwsh
-        run: |
-          $hookDir = ".\hooks"
-          if (!(Test-Path $hookDir)) {
-              New-Item -Path $hookDir -ItemType Directory | Out-Null
-          }
-          
-          $content = "from PyInstaller.utils.hooks import collect_submodules, collect_data_files`n`n# Include all submodules`nhiddenimports = collect_submodules('pyvis')`n`n# Include data files`ndatas = collect_data_files('pyvis')"
-          Set-Content -Path "$hookDir\hook-pyvis.py" -Value $content
-      
-      - name: Create global hook
-        shell: pwsh
-        run: |
-          $hookDir = ".\hooks"
-          if (!(Test-Path $hookDir)) {
-              New-Item -Path $hookDir -ItemType Directory | Out-Null
-          }
-          
-          $content = "# Global hidden imports`nhiddenimports = ['xxhash', 'networkx', 'joblib', 'tqdm', 'loguru', 'luaparser', 'setuptools', 'pyvis', 'PySide6', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'PySide6.QtWebChannel', 'uuid', 'tempfile', 'webbrowser']"
-          Set-Content -Path "$hookDir\hook-lus4n.py" -Value $content
-      
-      - name: Create graph module hook
-        shell: pwsh
-        run: |
-          $hookDir = ".\hooks"
-          if (!(Test-Path $hookDir)) {
-              New-Item -Path $hookDir -ItemType Directory | Out-Null
-          }
-          
-          $content = "from PyInstaller.utils.hooks import collect_submodules`n`n# Critical imports`nhiddenimports = ['xxhash', 'networkx', 'joblib', 'tqdm', 'loguru', 'luaparser']`n`n# Helper import`ndef hook(hook_api):`n    hook_api.add_imports(['xxhash'])"
-          Set-Content -Path "$hookDir\hook-lus4n.graph.py" -Value $content
-      
-      - name: Package application
-        shell: pwsh
-        run: |
-          # Clear old directories
-          $outputDirs = @(".\dist", ".\build", ".\releases")
-          foreach ($dir in $outputDirs) {
-              if (Test-Path $dir) {
-                  Remove-Item -Path $dir -Recurse -Force
-              }
-              New-Item -Path $dir -ItemType Directory | Out-Null
-          }
-          
-          # Get CPU cores
-          $cpuCores = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
-          
-          # Copy xxhash files to project
-          $pyPath = (python -c "import sys; print(sys.executable)")
-          $sitePackagesPath = Split-Path $pyPath
-          $sitePackagesPath = Join-Path $sitePackagesPath "Lib\site-packages"
-          
-          Write-Host "Looking for xxhash in $sitePackagesPath..."
-          $xxhashPath = Get-ChildItem -Path $sitePackagesPath -Filter "xxhash*" -Directory | Select-Object -First 1 -ExpandProperty FullName
-          if ($xxhashPath) {
-              Write-Host "Found xxhash at $xxhashPath"
-              # Copy xxhash to project
-              $projectXxhashDir = "lus4n\xxhash_lib"
-              New-Item -Path $projectXxhashDir -ItemType Directory -Force
-              Copy-Item -Path "$xxhashPath\*" -Destination $projectXxhashDir -Recurse -Force
-          } else {
-              Write-Host "xxhash directory not found in site-packages!" -ForegroundColor Red
-          }
-          
-          # Package GUI app
-          Write-Host "Packaging GUI application (using $cpuCores CPU cores)..." -ForegroundColor Green
-          pyinstaller --clean --noconfirm --onedir --name "lus4n-gui" --windowed --additional-hooks-dir=hooks `
-            --hidden-import=xxhash `
-            --hidden-import=networkx `
-            --hidden-import=joblib `
-            --hidden-import=tqdm `
-            --hidden-import=loguru `
-            --hidden-import=luaparser `
-            --hidden-import=pyvis `
-            --hidden-import=PySide6 `
-            --hidden-import=PySide6.QtWebEngineCore `
-            --hidden-import=PySide6.QtWebEngineWidgets `
-            --hidden-import=PySide6.QtWebChannel `
-            --collect-data=pyvis `
-            --collect-all=xxhash `
-            lus4n/gui.py
-          
-          # Ensure xxhash is included
-          if (!(Test-Path ".\dist\lus4n-gui\_internal\xxhash")) {
-              Write-Host "xxhash not found in packaged files, trying to copy manually..." -ForegroundColor Yellow
-              $xxhashPath = Get-ChildItem -Path $sitePackagesPath -Filter "xxhash*" -Directory | Select-Object -First 1 -ExpandProperty FullName
-              if ($xxhashPath) {
-                  # Manual copy xxhash
-                  $targetPath = ".\dist\lus4n-gui\xxhash"
-                  New-Item -Path $targetPath -ItemType Directory -Force
-                  Copy-Item -Path "$xxhashPath\*" -Destination $targetPath -Recurse -Force
-              }
-          }
-          
-          # Package CLI app
-          Write-Host "Packaging command-line application..." -ForegroundColor Green
-          pyinstaller --clean --noconfirm --onedir --name "lus4n-cli" --additional-hooks-dir=hooks `
-            --hidden-import=xxhash `
-            --hidden-import=networkx `
-            --hidden-import=joblib `
-            --hidden-import=tqdm `
-            --hidden-import=loguru `
-            --hidden-import=luaparser `
-            --collect-all=xxhash `
-            lus4n/cli.py
-          
-          # Check executable files
-          $guiExe = ".\dist\lus4n-gui\lus4n-gui.exe"
-          $cliExe = ".\dist\lus4n-cli\lus4n-cli.exe"
-          
-          if (!(Test-Path $guiExe) -or !(Test-Path $cliExe)) {
-              Write-Host "Packaging failed, cannot find generated executable files!" -ForegroundColor Red
-              exit 1
-          }
-          
-          # Create release packages
-          mkdir releases -Force
-          Compress-Archive -Path ".\dist\lus4n-gui\*" -DestinationPath ".\releases\lus4n-gui-windows.zip" -Force
-          Compress-Archive -Path ".\dist\lus4n-cli\*" -DestinationPath ".\releases\lus4n-cli-windows.zip" -Force
 
-      - name: Create release and upload assets
+      - name: 创建spec文件
+        run: |
+          $gui_spec = "lus4n-gui.spec"
+          $cli_spec = "lus4n-cli.spec"
+          
+          # 创建GUI的spec文件
+          pyinstaller --name lus4n-gui --onefile --noconsole --hidden-import xxhash --hidden-import networkx --hidden-import joblib --hidden-import tqdm --hidden-import loguru --hidden-import luaparser --hidden-import pyvis --hidden-import PySide6 --hidden-import PySide6.QtWebEngineCore --hidden-import PySide6.QtWebEngineWidgets --hidden-import PySide6.QtWebChannel lus4n/gui.py --specpath .
+          
+          # 创建CLI的spec文件
+          pyinstaller --name lus4n-cli --onefile --console --hidden-import xxhash --hidden-import networkx --hidden-import joblib --hidden-import tqdm --hidden-import loguru --hidden-import luaparser lus4n/cli.py --specpath .
+        shell: pwsh
+
+      - name: 使用PyInstaller打包
+        uses: JackMcKew/pyinstaller-action-windows@main
+        with:
+          path: .
+          spec: lus4n-gui.spec
+
+      - name: 使用PyInstaller打包CLI
+        uses: JackMcKew/pyinstaller-action-windows@main
+        with:
+          path: .
+          spec: lus4n-cli.spec
+
+      - name: 准备发布文件
+        run: |
+          mkdir releases -Force
+          
+          if (Test-Path "dist\windows\lus4n-gui.exe") {
+            Compress-Archive -Path "dist\windows\lus4n-gui.exe" -DestinationPath "releases\lus4n-gui-windows.zip" -Force
+            Write-Host "GUI版本打包成功"
+          } else {
+            Write-Host "找不到GUI可执行文件" -ForegroundColor Red
+          }
+          
+          if (Test-Path "dist\windows\lus4n-cli.exe") {
+            Compress-Archive -Path "dist\windows\lus4n-cli.exe" -DestinationPath "releases\lus4n-cli-windows.zip" -Force
+            Write-Host "CLI版本打包成功"
+          } else {
+            Write-Host "找不到CLI可执行文件" -ForegroundColor Red
+          }
+        shell: pwsh
+
+      - name: 发布版本
         uses: softprops/action-gh-release@v1
         with:
           name: lus4n ${{ github.ref_name }}
           body: |
-            lus4n ${{ github.ref_name }} release
+            lus4n ${{ github.ref_name }} 发布
             
-            ### Includes:
-            - Windows GUI version (lus4n-gui-windows.zip)
-            - Windows command-line version (lus4n-cli-windows.zip)
+            ### 包含内容:
+            - Windows GUI版本 (lus4n-gui-windows.zip)
+            - Windows 命令行版本 (lus4n-cli-windows.zip)
             
-            ### Dependency updates:
-            - All dependencies have been updated to the latest stable version
+            ### 修复:
             - 修复了xxhash模块缺失导致程序无法启动的问题
           files: |
             ./releases/lus4n-gui-windows.zip
