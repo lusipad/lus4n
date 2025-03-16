@@ -145,7 +145,7 @@ class GraphVisualizer:
         
         # 添加边
         for edge in sg.edges():
-            net.add_edge(edge[0], edge[1])
+            net.add_edge(edge[0], edge[1], arrows={'to': {'enabled': True, 'type': 'arrow'}})
         
         # 保存到临时文件
         show_path = os.path.join(self.temp_dir, f"{uuid.uuid4()}.html")
