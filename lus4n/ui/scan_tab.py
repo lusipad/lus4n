@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QTextEdit, QMessageBox, QProgressBar,
     QFileDialog
 )
+from PySide6.QtGui import QTextCursor
 from lus4n.ui.scan_thread import ScanThread
 
 
@@ -58,6 +59,8 @@ class ScanTab(QWidget):
         extensions_layout = QVBoxLayout(extensions_group)
         extensions_help = QLabel("指定要扫描的文件后缀，多个后缀用逗号分隔")
         self.extensions_input = QLineEdit(".lua")
+        self.extensions_input.setStyleSheet("color: #000000; background-color: #ffffff;")
+        self.extensions_input.setPlaceholderText(".lua,.ncprog,.target")
         extensions_layout.addWidget(extensions_help)
         extensions_layout.addWidget(self.extensions_input)
         layout.addWidget(extensions_group)
@@ -101,7 +104,7 @@ class ScanTab(QWidget):
     def log(self, message):
         """向日志区域添加消息"""
         self.log_text.append(message)
-        self.log_text.moveCursor(self.log_text.textCursor().End)
+        self.log_text.moveCursor(QTextCursor.End)
         self.log_text.ensureCursorVisible()
     
     def update_status(self, message):

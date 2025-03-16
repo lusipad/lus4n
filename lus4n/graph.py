@@ -14,18 +14,80 @@ from luaparser.ast import SyntaxException
 
 def scan_one_file(file_path: str, _format="json", _debug=False):
     if not os.path.exists(file_path):
-        logger.warning(f"{file_path} not existed")
+        logger.warning(f"File not found: {file_path}")
         exit(1)
+    
+    # 尝试不同的编码方式
+    encodings = ['utf-8', 'gb2312', 'gbk', 'latin-1']
+    source = None
+    
     try:
-        source = open(file_path, "rb").read().decode('latin-1')
-        tree = ast.parse(source)
-    except SyntaxException:
+        # 首先尝试二进制方式读取
+        with open(file_path, "rb") as f:
+            raw_data = f.read()
+            
+        # 处理BOM（字节顺序标记）
+        if raw_data.startswith(b'\xef\xbb\xbf'):  # UTF-8-BOM
+            raw_data = raw_data[3:]
+            
+        # 判断是否为可能加密或二进制文件
+        # 检查是否包含二进制字节或非常规字符
+        binary_check = False
+        for i, byte in enumerate(raw_data[:1024]):
+            # 控制字符（非打印字符），排除换行符、回车符和制表符
+            if byte < 32 and byte not in (9, 10, 13) or byte >= 127:
+                binary_check = True
+                break
+                
+        if b'\x00' in raw_data[:1024] or binary_check:
+            logger.warning(f"[BINARY/ENCRYPTED] Skipping file: {os.path.basename(file_path)}")
+            return file_path, {}, []
+        
+        # 尝试不同编码解码
+        for encoding in encodings:
+            try:
+                source = raw_data.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        # 如果所有编码都失败，使用latin-1作为后备（它不会失败，但可能显示乱码）
+        if source is None:
+            source = raw_data.decode('latin-1')
+            logger.warning(f"[ENCODING] Using latin-1 for file: {os.path.basename(file_path)}")
+            
+        # 禁用输出中不必要的打印，避免编码错误
+        import sys
+        import io
+        original_stdout = sys.stdout
+        sys.stdout = io.StringIO()  # 捕获输出，避免打印到控制台
+        
+        try:
+            tree = ast.parse(source)
+        except SyntaxException:
+            logger.warning(f"[SYNTAX] Error in file: {os.path.basename(file_path)}")
+            return file_path, {}, []
+        except Exception as e:
+            logger.error(f"[PARSE] Error in file: {os.path.basename(file_path)} - {str(e)}")
+            return file_path, {}, []
+        finally:
+            sys.stdout = original_stdout  # 恢复正常输出
+            
+    except IOError as e:
+        logger.error(f"[IO] Cannot read file: {os.path.basename(file_path)} - {str(e)}")
         return file_path, {}, []
-    _visitor = Lus4nVisitor(4, source)
-    _visitor.visit(tree)
-    call_graph, require = _visitor.output(_format=_format)
-    # logger.success(f"Wow! {file_path} done")
-    return file_path, call_graph, require
+    except Exception as e:
+        logger.error(f"[ERROR] Unexpected error with file: {os.path.basename(file_path)} - {str(e)}")
+        return file_path, {}, []
+    
+    try:    
+        _visitor = Lus4nVisitor(4, source)
+        _visitor.visit(tree)
+        call_graph, require = _visitor.output(_format=_format)
+        return file_path, call_graph, require
+    except Exception as e:
+        logger.error(f"[ANALYZE] Failed to analyze file: {os.path.basename(file_path)} - {str(e)}")
+        return file_path, {}, []
 
 
 def scan_path(dirt_path: str, _format, _debug=False, extensions=None):
