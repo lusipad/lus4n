@@ -14,8 +14,8 @@ from luaparser.ast import SyntaxException
 
 def scan_one_file(file_path: str, _format="json", _debug=False):
     if not os.path.exists(file_path):
-        logger.warning(f"File not found: {file_path}")
-        exit(1)
+        logger.warning(f"文件不存在: {file_path}")
+        return file_path, {}, [], "文件不存在"
     
     # 尝试不同的编码方式
     encodings = ['utf-8', 'gb2312', 'gbk', 'latin-1']
@@ -40,8 +40,8 @@ def scan_one_file(file_path: str, _format="json", _debug=False):
                 break
                 
         if b'\x00' in raw_data[:1024] or binary_check:
-            logger.warning(f"[BINARY/ENCRYPTED] Skipping file: {os.path.basename(file_path)}")
-            return file_path, {}, []
+            logger.warning(f"[二进制/加密文件] 跳过文件: {os.path.basename(file_path)}")
+            return file_path, {}, [], "二进制/加密文件"
         
         # 尝试不同编码解码
         for encoding in encodings:
@@ -54,7 +54,8 @@ def scan_one_file(file_path: str, _format="json", _debug=False):
         # 如果所有编码都失败，使用latin-1作为后备（它不会失败，但可能显示乱码）
         if source is None:
             source = raw_data.decode('latin-1')
-            logger.warning(f"[ENCODING] Using latin-1 for file: {os.path.basename(file_path)}")
+            logger.warning(f"[无法解码] 跳过文件: {os.path.basename(file_path)}")
+            return file_path, {}, [], "编码解析失败"
             
         # 禁用输出中不必要的打印，避免编码错误
         import sys
@@ -65,29 +66,29 @@ def scan_one_file(file_path: str, _format="json", _debug=False):
         try:
             tree = ast.parse(source)
         except SyntaxException:
-            logger.warning(f"[SYNTAX] Error in file: {os.path.basename(file_path)}")
-            return file_path, {}, []
+            logger.warning(f"[语法错误] 跳过文件: {os.path.basename(file_path)}")
+            return file_path, {}, [], "语法错误"
         except Exception as e:
-            logger.error(f"[PARSE] Error in file: {os.path.basename(file_path)} - {str(e)}")
-            return file_path, {}, []
+            logger.error(f"[解析错误] 跳过文件: {os.path.basename(file_path)} - {str(e)}")
+            return file_path, {}, [], "解析错误"
         finally:
             sys.stdout = original_stdout  # 恢复正常输出
             
     except IOError as e:
-        logger.error(f"[IO] Cannot read file: {os.path.basename(file_path)} - {str(e)}")
-        return file_path, {}, []
+        logger.error(f"[IO错误] 跳过文件: {os.path.basename(file_path)} - {str(e)}")
+        return file_path, {}, [], "IO错误"
     except Exception as e:
-        logger.error(f"[ERROR] Unexpected error with file: {os.path.basename(file_path)} - {str(e)}")
-        return file_path, {}, []
+        logger.error(f"[未知错误] 跳过文件: {os.path.basename(file_path)} - {str(e)}")
+        return file_path, {}, [], "未知错误"
     
     try:    
         _visitor = Lus4nVisitor(4, source)
         _visitor.visit(tree)
         call_graph, require = _visitor.output(_format=_format)
-        return file_path, call_graph, require
+        return file_path, call_graph, require, "成功"
     except Exception as e:
-        logger.error(f"[ANALYZE] Failed to analyze file: {os.path.basename(file_path)} - {str(e)}")
-        return file_path, {}, []
+        logger.error(f"[分析错误] 跳过文件: {os.path.basename(file_path)} - {str(e)}")
+        return file_path, {}, [], "分析错误"
 
 
 def scan_path(dirt_path: str, _format, _debug=False, extensions=None):
@@ -122,7 +123,7 @@ def scan_path(dirt_path: str, _format, _debug=False, extensions=None):
             #     logger.warning(f"Oops, {file_path} failed by {e}")
             
     for file_path in tqdm(will_scan):
-        _, call_graph, require = scan_one_file(file_path, _format, _debug)
+        _, call_graph, require, status = scan_one_file(file_path, _format, _debug)
         relative_file_path = file_path[len(dirt_path):]
         if not relative_file_path.startswith("/"):
             relative_file_path = "/" + relative_file_path

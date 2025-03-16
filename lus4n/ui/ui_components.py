@@ -99,10 +99,10 @@ class VisualizationSettings:
         
         self.max_nodes_slider = QSlider(Qt.Horizontal)
         self.max_nodes_slider.setMinimum(10)
-        self.max_nodes_slider.setMaximum(200)
+        self.max_nodes_slider.setMaximum(1000)
         self.max_nodes_slider.setValue(100)
         self.max_nodes_slider.setTickPosition(QSlider.TicksBelow)
-        self.max_nodes_slider.setTickInterval(10)
+        self.max_nodes_slider.setTickInterval(50)
         
         self.max_nodes_value = QLabel("100")
         self.max_nodes_value.setStyleSheet("QLabel { color: black; }")
