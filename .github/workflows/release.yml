@@ -8,12 +8,14 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
           
@@ -23,7 +25,18 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
       
+      - name: Create hook file for luaparser
+        shell: pwsh
+        run: |
+          $hookDir = ".\hooks"
+          if (!(Test-Path $hookDir)) {
+              New-Item -Path $hookDir -ItemType Directory | Out-Null
+          }
+          $hookContent = "# PyInstaller hook for luaparser`nfrom PyInstaller.utils.hooks import collect_submodules, collect_data_files`n`n# Make sure all submodules are included`nhiddenimports = collect_submodules('luaparser')`n`n# Include any data files`ndatas = collect_data_files('luaparser')"
+          Set-Content -Path "$hookDir\hook-luaparser.py" -Value $hookContent
+      
       - name: Package application
+        shell: pwsh
         run: |
           # Clean up old output directories
           $outputDirs = @(".\dist", ".\build", ".\releases")
@@ -33,24 +46,6 @@ jobs:
               }
               New-Item -Path $dir -ItemType Directory | Out-Null
           }
-          
-          # Create hook file for luaparser
-          Write-Host "Creating hook file for luaparser..." -ForegroundColor Yellow
-          $hookDir = ".\hooks"
-          if (!(Test-Path $hookDir)) {
-              New-Item -Path $hookDir -ItemType Directory | Out-Null
-          }
-          $hookContent = @"
-# PyInstaller hook for luaparser
-from PyInstaller.utils.hooks import collect_submodules, collect_data_files
-
-# Make sure all submodules are included
-hiddenimports = collect_submodules('luaparser')
-
-# Include any data files
-datas = collect_data_files('luaparser')
-"@
-          Set-Content -Path "$hookDir\hook-luaparser.py" -Value $hookContent
           
           # Get CPU core count for parallel compilation
           $cpuCores = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
@@ -77,14 +72,10 @@ datas = collect_data_files('luaparser')
           Compress-Archive -Path ".\dist\lus4n-gui\*" -DestinationPath ".\releases\lus4n-gui-windows.zip" -Force
           Compress-Archive -Path ".\dist\lus4n-cli\*" -DestinationPath ".\releases\lus4n-cli-windows.zip" -Force
 
-      - name: Create release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: lus4n ${{ github.ref_name }}
+          name: lus4n ${{ github.ref_name }}
           body: |
             lus4n ${{ github.ref_name }} release
             
@@ -94,23 +85,8 @@ datas = collect_data_files('luaparser')
             
             ### Dependency updates:
             - All dependencies have been updated to the latest stable version
-      
-      - name: Upload GUI version
-        uses: actions/upload-release-asset@v1
+          files: |
+            ./releases/lus4n-gui-windows.zip
+            ./releases/lus4n-cli-windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./releases/lus4n-gui-windows.zip
-          asset_name: lus4n-gui-windows.zip
-          asset_content_type: application/zip
-          
-      - name: Upload CLI version
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./releases/lus4n-cli-windows.zip
-          asset_name: lus4n-cli-windows.zip
-          asset_content_type: application/zip
