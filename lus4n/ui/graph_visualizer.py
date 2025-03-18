@@ -10,7 +10,8 @@ import uuid
 import shutil
 import webbrowser
 import tempfile
-from pyvis.network import Network
+from pyvis.network import Network as PyvisNetwork
+from .custom_network import CustomNetwork
 
 
 class GraphVisualizer:
@@ -21,7 +22,7 @@ class GraphVisualizer:
     
     def create_network(self, height="800px", width="100%"):
         """创建一个新的网络图实例"""
-        return Network(notebook=True, height=height, width=width)
+        return CustomNetwork(notebook=True, height=height, width=width)
     
     def apply_layout(self, net, layout_option):
         """应用指定的布局设置到网络图"""

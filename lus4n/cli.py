@@ -7,7 +7,7 @@ import webbrowser
 import networkx as nx
 
 from joblib import dump, load
-from pyvis.network import Network
+from lus4n.ui.custom_network import CustomNetwork
 
 from lus4n.graph import scan_path
 
@@ -70,7 +70,7 @@ def cli_main():
                 template_path = os.path.join(static_dir, 'template.html')
                 
                 # 创建网络图
-                net = Network(notebook=True)
+                net = CustomNetwork(notebook=True)
                 net.add_node(args.query)
                 net.from_nx(sg)
                 
@@ -84,7 +84,7 @@ def cli_main():
             except Exception as e:
                 print(f"复制静态资源文件失败：{e}")
                 # 回退到原始方法
-                net = Network(notebook=True)
+                net = CustomNetwork(notebook=True)
                 net.add_node(args.query)
                 net.from_nx(sg)
                 show_path = os.path.join(temp_dir, f"{uuid.uuid4()}.html")
