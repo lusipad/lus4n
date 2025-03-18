@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 setup(
     name='lus4n',
     packages=find_packages(),
-    version='1.2.0',
+    version='1.3.0',
     install_requires=[
         "networkx~=3.4.2",
         "joblib==1.4.2",

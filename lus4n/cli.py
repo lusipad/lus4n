@@ -1,5 +1,6 @@
 import os
 import uuid
+import shutil
 import argparse
 import tempfile
 import webbrowser
@@ -53,12 +54,42 @@ def cli_main():
             if args.query not in nodes:
                 nodes.add(args.query)
             sg = g.subgraph(nodes)
-            net = Network(notebook=True)
-            net.add_node(args.query)
-            net.from_nx(sg)
-            show_path = os.path.join(temp_dir, f"{uuid.uuid4()}.html")
-            net.show(show_path)
-            webbrowser.open_new_tab(f"file://{show_path}")
+            
+            # 创建临时目录用于存放 HTML 和静态资源
+            temp_uuid = str(uuid.uuid4())
+            temp_output_dir = os.path.join(temp_dir, f"lus4n_{temp_uuid}")
+            os.makedirs(temp_output_dir, exist_ok=True)
+            
+            # 复制静态资源文件到临时目录
+            static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ui', 'static')
+            try:
+                shutil.copy(os.path.join(static_dir, 'vis.min.js'), temp_output_dir)
+                shutil.copy(os.path.join(static_dir, 'vis.min.css'), temp_output_dir)
+                
+                # 获取自定义模板路径
+                template_path = os.path.join(static_dir, 'template.html')
+                
+                # 创建网络图
+                net = Network(notebook=True)
+                net.add_node(args.query)
+                net.from_nx(sg)
+                
+                # 如果自定义模板存在，则使用它
+                if os.path.exists(template_path):
+                    net.set_template(template_path)
+                
+                show_path = os.path.join(temp_output_dir, "network.html")
+                net.show(show_path)
+                webbrowser.open_new_tab(f"file://{show_path}")
+            except Exception as e:
+                print(f"复制静态资源文件失败：{e}")
+                # 回退到原始方法
+                net = Network(notebook=True)
+                net.add_node(args.query)
+                net.from_nx(sg)
+                show_path = os.path.join(temp_dir, f"{uuid.uuid4()}.html")
+                net.show(show_path)
+                webbrowser.open_new_tab(f"file://{show_path}")
         else:
             print(f"no such node {args.query}")
 
