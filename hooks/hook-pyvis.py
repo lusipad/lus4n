@@ -90,14 +90,23 @@ if os.path.exists(lus4n_static_dir):
     vis_js_path = os.path.join(lus4n_static_dir, 'vis.min.js')
     vis_css_path = os.path.join(lus4n_static_dir, 'vis.min.css')
     
+    # 明确添加模板文件到 PyInstaller 的 datas 列表
     if os.path.exists(template_path):
         templates_files.append((template_path, 'pyvis/templates'))
+        # 同时添加到 lus4n 目录结构中，确保两个位置都能找到
+        templates_files.append((template_path, 'lus4n/ui/static'))
     if os.path.exists(fallback_template_path):
         templates_files.append((fallback_template_path, 'pyvis/templates'))
+        # 同时添加到 lus4n 目录结构中，确保两个位置都能找到
+        templates_files.append((fallback_template_path, 'lus4n/ui/static'))
     if os.path.exists(vis_js_path):
         static_files.append((vis_js_path, 'pyvis/static'))
+        # 同时添加到 lus4n 目录结构中，确保两个位置都能找到
+        static_files.append((vis_js_path, 'lus4n/ui/static'))
     if os.path.exists(vis_css_path):
         static_files.append((vis_css_path, 'pyvis/static'))
+        # 同时添加到 lus4n 目录结构中，确保两个位置都能找到
+        static_files.append((vis_css_path, 'lus4n/ui/static'))
 
 # 合并找到的所有数据文件
 datas = templates_files + static_files

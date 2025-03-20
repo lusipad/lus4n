@@ -67,8 +67,31 @@ def cli_main():
                 shutil.copy(os.path.join(static_dir, 'vis.min.css'), temp_output_dir)
                 
                 # 获取自定义模板路径
-                template_path = os.path.join(static_dir, 'template.html')
-                fallback_template_path = os.path.join(static_dir, 'fallback_template.html')
+                # 尝试多个可能的位置查找模板文件
+                template_paths = [
+                    # 1. 标准路径
+                    os.path.join(static_dir, 'template.html'),
+                    # 2. 打包环境中的路径
+                    os.path.join(os.path.dirname(sys.executable), 'lus4n', 'ui', 'static', 'template.html') if getattr(sys, 'frozen', False) else None,
+                    # 3. pyvis 包路径
+                    os.path.join(os.path.dirname(sys.executable), 'pyvis', 'templates', 'template.html') if getattr(sys, 'frozen', False) else None
+                ]
+                
+                # 过滤掉 None 值
+                template_paths = [p for p in template_paths if p]
+                
+                # 查找第一个存在的模板路径
+                template_path = next((p for p in template_paths if p and os.path.exists(p)), None)
+                
+                # 同样处理备用模板
+                fallback_template_paths = [
+                    os.path.join(static_dir, 'fallback_template.html'),
+                    os.path.join(os.path.dirname(sys.executable), 'lus4n', 'ui', 'static', 'fallback_template.html') if getattr(sys, 'frozen', False) else None,
+                    os.path.join(os.path.dirname(sys.executable), 'pyvis', 'templates', 'fallback_template.html') if getattr(sys, 'frozen', False) else None
+                ]
+                
+                fallback_template_paths = [p for p in fallback_template_paths if p]
+                fallback_template_path = next((p for p in fallback_template_paths if p and os.path.exists(p)), None)
                 
                 # 创建网络图
                 net = CustomNetwork(notebook=True)
