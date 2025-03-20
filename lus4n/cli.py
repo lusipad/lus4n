@@ -68,15 +68,47 @@ def cli_main():
                 
                 # 获取自定义模板路径
                 template_path = os.path.join(static_dir, 'template.html')
+                fallback_template_path = os.path.join(static_dir, 'fallback_template.html')
                 
                 # 创建网络图
                 net = CustomNetwork(notebook=True)
                 net.add_node(args.query)
                 net.from_nx(sg)
                 
-                # 如果自定义模板存在，则使用它
+                # 选择模板
                 if os.path.exists(template_path):
                     net.set_template(template_path)
+                elif os.path.exists(fallback_template_path):
+                    net.set_template(fallback_template_path)
+                else:
+                    # 使用内联模板作为最后的备用方案
+                    print("警告：找不到模板文件，使用内联模板")
+                    inline_template = """
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Lus4n Network</title>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet" type="text/css" />
+<style type="text/css">
+    #mynetwork {
+        width: 100%;
+        height: 800px;
+        border: 1px solid lightgray;
+    }
+</style>
+</head>
+<body>
+<div id="mynetwork"></div>
+</body>
+</html>
+                    """
+                    # 创建临时模板文件
+                    temp_template_path = os.path.join(temp_output_dir, "temp_template.html")
+                    with open(temp_template_path, "w", encoding="utf-8") as f:
+                        f.write(inline_template)
+                    net.set_template(temp_template_path)
                 
                 show_path = os.path.join(temp_output_dir, "network.html")
                 net.show(show_path)
