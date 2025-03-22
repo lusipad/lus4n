@@ -295,13 +295,20 @@ class QueryTab(QWidget):
             for func_name, call_count in sorted_entries:
                 # 获取函数所在的文件
                 file_path = "未知"
-                for source, _, data in self.analyzer.graph.in_edges(func_name, data=True):
-                    if data.get('action') in ['export', 'define']:
-                        file_path = source
-                        break
+                try:
+                    for source, _, data in self.analyzer.graph.in_edges(func_name, data=True):
+                        if data.get('action') in ['export', 'define']:
+                            file_path = source
+                            break
+                except Exception:
+                    # 如果获取文件路径时出错，使用默认值
+                    pass
                 
                 # 提取文件名（不显示完整路径）
-                file_name = os.path.basename(file_path) if file_path and isinstance(file_path, str) else "未知"
+                try:
+                    file_name = os.path.basename(file_path) if file_path and isinstance(file_path, str) else "未知"
+                except Exception:
+                    file_name = "未知"
                 
                 html += f"""
                 <tr>
