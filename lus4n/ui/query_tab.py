@@ -301,7 +301,7 @@ class QueryTab(QWidget):
                         break
                 
                 # 提取文件名（不显示完整路径）
-                file_name = os.path.basename(file_path) if file_path else "未知"
+                file_name = os.path.basename(file_path) if file_path and isinstance(file_path, str) else "未知"
                 
                 html += f"""
                 <tr>
