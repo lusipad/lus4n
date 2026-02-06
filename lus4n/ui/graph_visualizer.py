@@ -103,7 +103,7 @@ class GraphVisualizer:
     
     def render_graph(self, graph, nodes, query_node=None, 
                     show_physics=True, size_by_importance=True, 
-                    layout="力导向布局"):
+                    layout="力导向布局", ancestors=None, descendants=None):
         """
         渲染图形
         
@@ -114,6 +114,8 @@ class GraphVisualizer:
         - show_physics: 是否显示物理引擎效果
         - size_by_importance: 是否根据重要性调整节点大小
         - layout: 布局方式
+        - ancestors: 调用者节点集合（用于双向查询时区分颜色）
+        - descendants: 被调用者节点集合（用于双向查询时区分颜色）
         
         返回:
         - 生成的 HTML 文件路径
@@ -156,10 +158,17 @@ class GraphVisualizer:
                 size = min(10 + importance * 2, 30)  # 限制最大尺寸
             else:
                 size = 15  # 默认大小
-                
+            
             # 设置节点颜色
             if "role" in graph.nodes[node] and graph.nodes[node]["role"] == "file":
                 color = "#6BAED6"  # 蓝色表示文件
+            elif ancestors and descendants:  # 双向查询模式
+                if node in ancestors:
+                    color = "#8BC34A"  # 绿色表示调用者
+                elif node in descendants:
+                    color = "#FFA726"  # 橙色表示被调用者
+                else:
+                    color = "#C7E9B4"  # 默认浅绿色
             else:
                 # 函数节点根据入度 (被调用次数) 设置颜色深浅
                 in_degree = sg.in_degree(node)
@@ -170,7 +179,15 @@ class GraphVisualizer:
                 else:
                     color = "#C7E9B4"  # 浅绿色
             
-            net.add_node(node, size=size, color=color, title=f"{node} (被调用：{sg.in_degree(node)}次)")
+            # 构建节点标题
+            title = f"{node} (被调用：{sg.in_degree(node)}次)"
+            if ancestors and descendants:
+                if node in ancestors:
+                    title += " [调用者]"
+                elif node in descendants:
+                    title += " [被调用者]"
+            
+            net.add_node(node, size=size, color=color, title=title)
         
         # 添加边
         for edge in sg.edges():

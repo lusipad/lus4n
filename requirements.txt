@@ -6,4 +6,7 @@ loguru~=0.7.3
 luaparser~=3.3.0
 setuptools==76.0.0
 pyvis~=0.3.2
-PySide6~=6.8.2.1
+PySide6>=6.5.0
+PySide6-Addons>=6.5.0
+Pillow>=10.0.0
+selenium>=4.15.0

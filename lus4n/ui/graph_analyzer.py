@@ -126,6 +126,37 @@ class GraphAnalyzer:
             
         return ancestors
     
+    def get_function_descendants(self, function_name):
+        """获取函数的所有后代节点（该函数调用的所有函数）"""
+        if not self.graph:
+            raise ValueError("请先加载图数据")
+        
+        if function_name not in self.graph.nodes:
+            raise ValueError(f"函数不存在: {function_name}")
+        
+        # 获取所有后代节点
+        descendants = nx.descendants(self.graph, function_name)
+        if function_name not in descendants:
+            descendants.add(function_name)
+            
+        return descendants
+    
+    def get_function_bidirectional(self, function_name):
+        """获取函数的双向关系（祖先+后代）"""
+        if not self.graph:
+            raise ValueError("请先加载图数据")
+        
+        if function_name not in self.graph.nodes:
+            raise ValueError(f"函数不存在: {function_name}")
+        
+        # 合并祖先和后代
+        ancestors = nx.ancestors(self.graph, function_name)
+        descendants = nx.descendants(self.graph, function_name)
+        bidirectional = ancestors | descendants
+        bidirectional.add(function_name)
+        
+        return bidirectional, ancestors, descendants
+    
     def filter_nodes_by_type(self, nodes, show_files=True):
         """按类型筛选节点"""
         if not self.graph:
@@ -211,3 +242,89 @@ class GraphAnalyzer:
             raise ValueError("请先加载图数据")
             
         return set(self.graph.nodes())
+    
+    def find_call_paths(self, source, target, max_depth=10, max_paths=100):
+        """查找从 source 到 target 的所有调用路径
+        
+        参数:
+        - source: 起始函数
+        - target: 目标函数
+        - max_depth: 最大路径深度
+        - max_paths: 最大返回路径数
+        
+        返回:
+        - 路径列表,每个路径是节点列表
+        """
+        if not self.graph:
+            raise ValueError("请先加载图数据")
+        
+        if source not in self.graph.nodes:
+            raise ValueError(f"起始函数不存在: {source}")
+        
+        if target not in self.graph.nodes:
+            raise ValueError(f"目标函数不存在: {target}")
+        
+        # 使用 networkx 的 all_simple_paths 查找所有简单路径
+        try:
+            paths = []
+            for path in nx.all_simple_paths(self.graph, source, target, cutoff=max_depth):
+                paths.append(path)
+                if len(paths) >= max_paths:
+                    break
+            return paths
+        except nx.NetworkXNoPath:
+            return []
+    
+    def find_shortest_call_path(self, source, target):
+        """查找从 source 到 target 的最短调用路径
+        
+        参数:
+        - source: 起始函数
+        - target: 目标函数
+        
+        返回:
+        - 最短路径(节点列表),如果不存在则返回 None
+        """
+        if not self.graph:
+            raise ValueError("请先加载图数据")
+        
+        if source not in self.graph.nodes:
+            raise ValueError(f"起始函数不存在: {source}")
+        
+        if target not in self.graph.nodes:
+            raise ValueError(f"目标函数不存在: {target}")
+        
+        try:
+            return nx.shortest_path(self.graph, source, target)
+        except nx.NetworkXNoPath:
+            return None
+    
+    def get_hotspot_functions(self, top_n=20):
+        """获取热点函数（被调用次数最多的前 N 个函数）
+        
+        参数:
+        - top_n: 返回前 N 个热点函数
+        
+        返回:
+        - 列表,每项为 (函数名, 被调用次数, 调用者数量, 被调用者数量)
+        """
+        if not self.graph:
+            raise ValueError("请先加载图数据")
+        
+        hotspots = []
+        for node in self.graph.nodes():
+            # 跳过文件节点
+            if "role" in self.graph.nodes[node] and self.graph.nodes[node]["role"] == "file":
+                continue
+            
+            in_degree = self.graph.in_degree(node)
+            out_degree = self.graph.out_degree(node)
+            
+            # 只统计被调用过的函数
+            if in_degree > 0:
+                hotspots.append((node, in_degree, out_degree))
+        
+        # 按被调用次数降序排序
+        hotspots.sort(key=lambda x: x[1], reverse=True)
+        
+        return hotspots[:top_n]

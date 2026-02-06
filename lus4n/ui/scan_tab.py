@@ -8,7 +8,7 @@ import os
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, 
     QLineEdit, QPushButton, QTextEdit, QMessageBox, QProgressBar,
-    QFileDialog
+    QFileDialog, QCheckBox
 )
 from PySide6.QtGui import QTextCursor
 from lus4n.ui.scan_thread import ScanThread
@@ -64,6 +64,20 @@ class ScanTab(QWidget):
         extensions_layout.addWidget(extensions_help)
         extensions_layout.addWidget(self.extensions_input)
         layout.addWidget(extensions_group)
+        
+        # 扫描选项区域
+        options_group = QGroupBox("扫描选项")
+        options_layout = QHBoxLayout(options_group)
+        self.multiprocess_checkbox = QCheckBox("启用多进程并行扫描 (加速大型项目)")
+        self.multiprocess_checkbox.setChecked(True)
+        self.multiprocess_checkbox.setStyleSheet("QCheckBox { color: black; }")
+        self.incremental_checkbox = QCheckBox("启用增量扫描 (只扫描修改的文件)")
+        self.incremental_checkbox.setChecked(True)
+        self.incremental_checkbox.setStyleSheet("QCheckBox { color: black; }")
+        options_layout.addWidget(self.multiprocess_checkbox)
+        options_layout.addWidget(self.incremental_checkbox)
+        options_layout.addStretch()
+        layout.addWidget(options_group)
         
         # 扫描按钮
         scan_btn = QPushButton("开始扫描")
@@ -146,11 +160,13 @@ class ScanTab(QWidget):
             self.storage_input.setText(storage)
         
         extensions = [ext.strip() for ext in self.extensions_input.text().split(",")]
+        use_multiprocess = self.multiprocess_checkbox.isChecked()
+        use_incremental = self.incremental_checkbox.isChecked()
         
-        # 显示进度条
+        # 显示进度条 (初始为不确定模式,收到进度信号后切换为确定模式)
         if self.progress_bar:
             self.progress_bar.setVisible(True)
-            self.progress_bar.setRange(0, 0)  # 不确定进度模式
+            self.progress_bar.setRange(0, 0)  # 初始不确定进度模式,收集文件时使用
         self.update_status("正在扫描...")
         self.scanning = True
         
@@ -169,16 +185,25 @@ class ScanTab(QWidget):
                 pass  # 忽略断开连接时的错误
         
         # 创建并启动扫描线程
-        self.scan_thread = ScanThread(path, storage, extensions)
+        self.scan_thread = ScanThread(path, storage, extensions, use_multiprocess, use_incremental)
         
         # 连接信号
         self.scan_thread.update_log.connect(self.log)
         self.scan_thread.update_status.connect(self.update_status)
+        self.scan_thread.update_progress.connect(self.on_progress_update)
         self.scan_thread.scan_finished.connect(self.on_scan_finished)
         self.scan_thread.scan_error.connect(self.on_scan_error)
         
         # 启动线程
         self.scan_thread.start()
+    
+    def on_progress_update(self, current, total):
+        """进度更新的回调处理"""
+        if self.progress_bar:
+            # 设置确定进度模式
+            if self.progress_bar.maximum() == 0:
+                self.progress_bar.setRange(0, total)
+            self.progress_bar.setValue(current)
     
     def on_scan_finished(self, result):
         """扫描完成的回调处理"""

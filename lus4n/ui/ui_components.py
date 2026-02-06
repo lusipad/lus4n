@@ -166,12 +166,29 @@ class FunctionQueryInput:
         self.on_list_all = on_list_all
         self.on_show_all = on_show_all
         self.function_input = None
+        self.query_mode_combo = None
         self.group = self._create_ui()
     
     def _create_ui(self):
         """创建UI组件"""
         group = QGroupBox("函数查询")
-        layout = QHBoxLayout(group)
+        main_layout = QVBoxLayout(group)
+        
+        # 第一行:查询模式选择
+        mode_layout = QHBoxLayout()
+        mode_label = QLabel("查询模式:")
+        mode_label.setStyleSheet("QLabel { color: black; }")
+        
+        self.query_mode_combo = QComboBox()
+        self.query_mode_combo.addItems(["调用者(谁调用它)", "被调用者(它调用谁)", "双向关系"])
+        self.query_mode_combo.setCurrentIndex(2)  # 默认双向关系
+        
+        mode_layout.addWidget(mode_label)
+        mode_layout.addWidget(self.query_mode_combo, 1)
+        main_layout.addLayout(mode_layout)
+        
+        # 第二行:函数输入和按钮
+        input_layout = QHBoxLayout()
         
         self.function_input = QLineEdit()
         self.function_input.setPlaceholderText("输入要查询的函数名（例如：os.execute）")
@@ -195,10 +212,12 @@ class FunctionQueryInput:
         if self.on_show_all:
             show_all_relations_btn.clicked.connect(self.on_show_all)
         
-        layout.addWidget(self.function_input)
-        layout.addWidget(query_btn)
-        layout.addWidget(list_all_btn)
-        layout.addWidget(show_all_relations_btn)
+        input_layout.addWidget(self.function_input)
+        input_layout.addWidget(query_btn)
+        input_layout.addWidget(list_all_btn)
+        input_layout.addWidget(show_all_relations_btn)
+        
+        main_layout.addLayout(input_layout)
         
         return group
     
@@ -209,6 +228,10 @@ class FunctionQueryInput:
     def set_function_name(self, name):
         """设置函数名输入"""
         self.function_input.setText(name)
+    
+    def get_query_mode(self):
+        """获取查询模式 (0=调用者, 1=被调用者, 2=双向关系)"""
+        return self.query_mode_combo.currentIndex()
     
     def update_completer_items(self, items):
         """更新自动完成器的项目列表"""
